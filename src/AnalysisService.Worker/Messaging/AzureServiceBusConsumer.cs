@@ -1,26 +1,31 @@
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using DocumentIntelligence.Contracts.Contracts;
-using AnalysisService.Worker.Outbound;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using AnalysisService.Worker.Infrastructure;
+
 
 namespace AnalysisService.Worker.Messaging;
 
-// Reads AnalyzeDocumentCommand messages, performs analysis, and POSTs results back to the API.
+// Reads AnalyzeDocumentCommand messages, performs analysis, 
+// saves heavy data to Blob (or fake Blob) and publishes AnalysisCompletedEvent to the bus.
 public class AzureServiceBusConsumer : BackgroundService
 {
     private readonly ServiceBusProcessor _processor;
     private readonly ILogger<AzureServiceBusConsumer> _logger;
-    private readonly AnalysisResultPublisher _publisher;
+    private readonly IBlobWriter _blobWriter;
+    private readonly IAnalysisResultEventPublisher _resultPublisher;
 
     public AzureServiceBusConsumer(
         IConfiguration config,
         ILogger<AzureServiceBusConsumer> logger,
-        AnalysisResultPublisher publisher)
+        IBlobWriter blobWriter,
+        IAnalysisResultEventPublisher resultPublisher)
     {
         _logger = logger;
-        _publisher = publisher;
+        _blobWriter = blobWriter;
+        _resultPublisher = resultPublisher;
 
         var connectionString = config["ServiceBus:ConnectionString"]
             ?? throw new InvalidOperationException("Missing ServiceBus:ConnectionString");
@@ -50,23 +55,35 @@ public class AzureServiceBusConsumer : BackgroundService
             {
                 _logger.LogInformation("Handling AnalyzeDocumentCommand for {DocumentId}", cmd.DocumentId);
 
-                var result = new AnalysisResultDto(
-                    DocumentId: cmd.DocumentId,
-                    Summary: $"Auto summary for {cmd.FileName}",
-                    ExtractedEntities: new[] { "InvoiceNo:12345", "Amount:99.99" }
+                // Fake analysis for demo
+                var extractedEntities = new[]
+                {
+                    "InvoiceNo:12345",
+                    "Amount:99.99"
+                };
+                var summary = $"Auto summary for {cmd.FileName}";
+
+                // Save extracted entities to blob/fake blob
+                var blobRef = await _blobWriter.SaveAsync(cmd.DocumentId, extractedEntities, CancellationToken.None);
+
+                // Publish AnalysisCompletedEvent (instead of HTTP callback)
+                var evt = new AnalysisCompletedEvent(
+                    cmd.DocumentId,
+                    summary,
+                    blobRef
                 );
 
-                await _publisher.PublishResultAsync(result, CancellationToken.None);
+                await _resultPublisher.PublishAsync(evt, CancellationToken.None);
 
-                _logger.LogInformation("Published result for {DocumentId}", cmd.DocumentId);
+                _logger.LogInformation("Published AnalysisCompletedEvent for {DocumentId}", cmd.DocumentId);
             }
 
             await args.CompleteMessageAsync(args.Message);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing message");
-            // TODO: dead-letter handling etc.
+            _logger.LogError(ex, "Error processing AnalyzeDocumentCommand");
+            // optionally: await args.DeadLetterMessageAsync(args.Message);
         }
     }
 
@@ -81,7 +98,11 @@ public class AzureServiceBusConsumer : BackgroundService
         _logger.LogInformation("Starting Service Bus consumer...");
         await _processor.StartProcessingAsync(stoppingToken);
 
-        await Task.Delay(Timeout.Infinite, stoppingToken);
+        try
+        {
+            await Task.Delay(Timeout.Infinite, stoppingToken);
+        }
+        catch (TaskCanceledException) { }
 
         _logger.LogInformation("Stopping Service Bus consumer...");
         await _processor.StopProcessingAsync(stoppingToken);
