@@ -11,20 +11,17 @@ public interface IDocumentRepository
     Task SetStatusAsync(Guid documentId, DocumentStatus status, CancellationToken ct = default);
 
     Task<DocumentRecord?> GetAsync(Guid documentId, CancellationToken ct = default);
-    Task ApplyAnalysisResultAsync(
-        Guid documentId,
-        string summary,
-        string[] extractedEntities,
-        CancellationToken ct = default);
+    Task UpdateAnalysisResultAsync(Guid documentId, string summary, string blobReference, DocumentStatus status = DocumentStatus.Analyzed, CancellationToken ct = default);
+
 }
 
-// This is our internal representation of a "document" in the API service.
+//internal projection type (not EF entity, not the HTTP DTO).
 public record DocumentRecord(
     Guid Id,
     string FileName,
     DocumentStatus Status,
     string? AnalysisSummary,
-    string[]? ExtractedEntities
+    string? AnalysisBlobRef
 
     
 );

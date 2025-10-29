@@ -1,32 +1,26 @@
 using DocumentIntelligence.Contracts.Contracts;
 using DocumentIntelligence.Contracts.DomainContracts;
-using DocumentService.Api.Infrastructure.Ef;
 using Microsoft.EntityFrameworkCore;
+using DocumentService.Api.Infrastructure.Repositories;
 
 
 namespace DocumentService.Api.Messaging;
 public class AnalysisCompletedEventHandler
 {
-    private readonly DocumentApiDbContext _db;
+    private readonly IDocumentRepository _repo;
 
-    public AnalysisCompletedEventHandler(DocumentApiDbContext db)
+    public AnalysisCompletedEventHandler(IDocumentRepository repo)
     {
-        _db = db;
+        _repo = repo;
     }
 
     public async Task HandleAsync(AnalysisCompletedEvent evt, CancellationToken ct)
-    {
-        var doc = await _db.Documents.FirstOrDefaultAsync(d => d.Id == evt.DocumentId, ct);
-        if (doc == null)
         {
-            // optional: log warning
-            return;
+            await _repo.UpdateAnalysisResultAsync(
+                evt.DocumentId,
+                evt.Summary,
+                evt.BlobReference,
+                evt.Status,
+                ct: ct);
         }
-
-        doc.Status = DocumentStatus.Analyzed;
-        doc.AnalysisSummary = evt.Summary;
-        doc.AnalysisBlobRef = evt.BlobReference;
-
-        await _db.SaveChangesAsync(ct);
-    }
 }
