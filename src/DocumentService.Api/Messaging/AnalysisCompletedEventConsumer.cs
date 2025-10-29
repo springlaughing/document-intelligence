@@ -10,24 +10,24 @@ public class AnalysisCompletedEventConsumer : BackgroundService
 {
     private readonly ServiceBusProcessor _processor;
     private readonly AnalysisCompletedEventHandler _handler;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<AnalysisCompletedEventConsumer> _logger;
 
     public AnalysisCompletedEventConsumer(
         IConfiguration config,
+        ServiceBusClient client,
         AnalysisCompletedEventHandler handler,
+         IServiceScopeFactory scopeFactory,
         ILogger<AnalysisCompletedEventConsumer> logger)
     {
         _handler = handler;
         _logger = logger;
-
-        var connectionString = config["ServiceBus:ConnectionString"]
-            ?? throw new InvalidOperationException("Missing ServiceBus:ConnectionString");
+        _scopeFactory = scopeFactory;
 
         // z.B. Topic "analysis-completed", Subscription "document-api"
         var topicName = config["ServiceBus:AnalysisCompletedTopic"] ?? "analysis-completed";
         var subscriptionName = config["ServiceBus:AnalysisCompletedSubscription"] ?? "document-api";
 
-        var client = new ServiceBusClient(connectionString);
         _processor = client.CreateProcessor(topicName, subscriptionName);
     }
 
@@ -48,7 +48,12 @@ public class AnalysisCompletedEventConsumer : BackgroundService
 
             if (evt != null)
             {
-                await _handler.HandleAsync(evt, CancellationToken.None);
+                using var scope = _scopeFactory.CreateScope();
+
+                var handler = scope.ServiceProvider
+                    .GetRequiredService<AnalysisCompletedEventHandler>();
+
+                await handler.HandleAsync(evt, CancellationToken.None);
             }
 
             await args.CompleteMessageAsync(args.Message);

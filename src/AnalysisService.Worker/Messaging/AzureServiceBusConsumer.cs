@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using DocumentIntelligence.Contracts.Contracts;
+using DocumentIntelligence.Contracts.DomainContracts;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using AnalysisService.Worker.Infrastructure;
@@ -20,6 +21,7 @@ public class AzureServiceBusConsumer : BackgroundService
     public AzureServiceBusConsumer(
         IConfiguration config,
         ILogger<AzureServiceBusConsumer> logger,
+        ServiceBusClient client,
         IBlobWriter blobWriter,
         IAnalysisResultEventPublisher resultPublisher)
     {
@@ -27,13 +29,8 @@ public class AzureServiceBusConsumer : BackgroundService
         _blobWriter = blobWriter;
         _resultPublisher = resultPublisher;
 
-        var connectionString = config["ServiceBus:ConnectionString"]
-            ?? throw new InvalidOperationException("Missing ServiceBus:ConnectionString");
-
         var queueName = config["ServiceBus:QueueName"]
             ?? "analyze-document";
-
-        var client = new ServiceBusClient(connectionString);
 
         _processor = client.CreateProcessor(queueName, new ServiceBusProcessorOptions
         {
@@ -55,7 +52,8 @@ public class AzureServiceBusConsumer : BackgroundService
             {
                 _logger.LogInformation("Handling AnalyzeDocumentCommand for {DocumentId}", cmd.DocumentId);
 
-                // Fake analysis for demo
+                // here we call some service for analysis
+                // Forn now, say these are entities we got from analysis 
                 var extractedEntities = new[]
                 {
                     "InvoiceNo:12345",
@@ -67,9 +65,12 @@ public class AzureServiceBusConsumer : BackgroundService
                 var blobRef = await _blobWriter.SaveAsync(cmd.DocumentId, extractedEntities, CancellationToken.None);
 
                 // Publish AnalysisCompletedEvent (instead of HTTP callback)
+                // If analysis fails, instead of publishing DocumentStatus.Analyzed I would still publish AnalysisCompletedEvent
+                // but with DocumentStatus.Error and a short failure summary (e.g. ‘OCR timeout’).
                 var evt = new AnalysisCompletedEvent(
                     cmd.DocumentId,
                     summary,
+                    DocumentStatus.Analyzed,
                     blobRef
                 );
 

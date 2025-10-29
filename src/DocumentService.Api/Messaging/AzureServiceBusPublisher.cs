@@ -8,18 +8,14 @@ namespace DocumentService.Api.Messaging;
 public class AzureServiceBusPublisher : IMessageBus, IAsyncDisposable
 {
     private readonly ServiceBusSender _sender;
-    private readonly ServiceBusClient _client;
 
-    public AzureServiceBusPublisher(IConfiguration config)
+    public AzureServiceBusPublisher(IConfiguration config, ServiceBusClient client)
     {
-        var connectionString = config["ServiceBus:ConnectionString"]
-            ?? throw new InvalidOperationException("Missing ServiceBus:ConnectionString");
 
         var queueName = config["ServiceBus:QueueName"]
             ?? "analyze-document";
 
-        _client = new ServiceBusClient(connectionString);
-        _sender = _client.CreateSender(queueName);
+        _sender = client.CreateSender(queueName);
     }
 
     public async Task PublishAsync<T>(T message, CancellationToken ct = default)
@@ -37,6 +33,6 @@ public class AzureServiceBusPublisher : IMessageBus, IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await _sender.DisposeAsync();
-        await _client.DisposeAsync();
+
     }
 }

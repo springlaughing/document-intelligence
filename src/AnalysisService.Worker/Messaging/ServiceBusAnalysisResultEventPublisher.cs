@@ -23,4 +23,9 @@ public class ServiceBusAnalysisResultEventPublisher : IAnalysisResultEventPublis
 
         await _sender.SendMessageAsync(message, ct);
     }
+        public async ValueTask DisposeAsync()
+    {
+        await _sender.DisposeAsync();
+
+    }
 }
