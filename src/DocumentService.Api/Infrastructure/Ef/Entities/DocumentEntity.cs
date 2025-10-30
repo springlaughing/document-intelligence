@@ -14,6 +14,6 @@ public class DocumentEntity
     public string? AnalysisBlobRef { get; set; }
 
     // Concurrency token (optimistic concurrency)
-    public byte[] RowVersion { get; set; } = default!;
+    public byte[]? RowVersion { get; set; } = default!;
 }
 

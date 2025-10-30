@@ -1,3 +1,7 @@
+using Azure.Monitor.OpenTelemetry.AspNetCore;
+using OpenTelemetry.Resources;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Identity.Web;
 using DocumentIntelligence.Contracts.Messaging;
 using DocumentIntelligence.Contracts.DomainContracts;
 using DocumentService.Api.Messaging;
@@ -6,27 +10,90 @@ using DocumentService.Api.Infrastructure.Ef;
 using DocumentService.Api.Infrastructure.Ef.Entities;
 using Microsoft.EntityFrameworkCore;
 using Azure.Messaging.ServiceBus; 
+using Microsoft.OpenApi.Models;
 
 
 var builder = WebApplication.CreateBuilder(args);
-// read conn string from config
-var serviceBusConnectionString =
-    builder.Configuration.GetSection("AzureServiceBus")["ConnectionString"]
-    ?? throw new InvalidOperationException("AzureServiceBus:ConnectionString not configured");
 
-// register ServiceBusClient as singleton
-builder.Services.AddSingleton<ServiceBusClient>(sp =>
-    new ServiceBusClient(serviceBusConnectionString));
+builder.Logging.ClearProviders();
+builder.Logging.AddSimpleConsole(o => o.TimestampFormat = "HH:mm:ss ");
+
+if (!builder.Environment.IsDevelopment())
+{
+    var aiConnStr =
+        builder.Configuration["ApplicationInsights:ConnectionString"]
+        ?? Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");
+
+    if (!string.IsNullOrWhiteSpace(aiConnStr))
+    {
+        builder.Services.AddOpenTelemetry()
+            .ConfigureResource(r => r.AddService(builder.Environment.ApplicationName))
+            .UseAzureMonitor(o => o.ConnectionString = aiConnStr);
+    }
+
+}
+
+builder.Services.AddSingleton(sp =>
+{
+    var cfg = sp.GetRequiredService<IConfiguration>();
+
+    var cs  = cfg.GetConnectionString("AzureServiceBus")
+             ?? cfg["AzureServiceBus:ConnectionString"]; // dev/user-secrets
+
+    var fqn = cfg["AzureServiceBus:FullyQualifiedNamespace"]; // "<ns>.servicebus.windows.net"
+
+    var options = new ServiceBusClientOptions
+    {
+        RetryOptions = new ServiceBusRetryOptions
+        {
+            Mode       = ServiceBusRetryMode.Exponential,
+            MaxRetries = 5,
+            Delay      = TimeSpan.FromMilliseconds(200),
+            MaxDelay   = TimeSpan.FromSeconds(8)
+        }
+    };
+
+    if (!string.IsNullOrWhiteSpace(cs))
+        return new ServiceBusClient(cs, options); // dev/conn-string
+
+    if (string.IsNullOrWhiteSpace(fqn))
+        throw new InvalidOperationException("AzureServiceBus connection not configured.");
+
+    return new ServiceBusClient(
+        fqn,
+        new Azure.Identity.DefaultAzureCredential(),
+        options
+    ); // cloud/MSI
+});
+
 // 1. Add controllers (classic MVC controller style)
 builder.Services.AddControllers();
-// 2. AuthN / AuthZ
-// For now you might add builder.Services.AddAuthentication(...); AddAuthorization(...);
 
-builder.Services.AddAuthorization(options =>
+if (builder.Environment.IsDevelopment())
 {
-    options.AddPolicy("AdminOnly", p => p.RequireRole("admin"));
-    options.AddPolicy("Reader", p => p.RequireRole("admin", "user"));
-});
+    // Local dev: use dotnet user-jwts (no Authority needed)
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(); // picks up settings auto-created by `dotnet user-jwts`
+}
+else
+{
+    // Cloud: real Entra ID (HTTPS authority)
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("EntraId"));
+}
+
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy("ReadAccess", policy =>
+        policy.RequireAssertion(ctx =>
+            ctx.User.IsInRole("admin") ||
+            ctx.User.IsInRole("user")  ||
+            ctx.User.HasClaim("scp", "read")))
+    .AddPolicy("WriteAccess", policy =>
+        policy.RequireAssertion(ctx =>
+            ctx.User.IsInRole("admin") ||
+            ctx.User.HasClaim("scp", "write")))
+    .AddPolicy("AdminOnly", p => p.RequireRole("admin"));
+
 
 // 🔹 EF Core DbContext registrieren
 builder.Services.AddDbContext<DocumentApiDbContext>(options =>
@@ -43,7 +110,9 @@ builder.Services.AddDbContext<DocumentApiDbContext>(options =>
 builder.Services.AddScoped<IDocumentRepository, EfDocumentRepository>();
 
 // Messaging
-builder.Services.AddSingleton<IMessageBus, AzureServiceBusPublisher>();
+builder.Services.AddSingleton<IMessagePublisher, AzureServiceBusPublisher>();
+builder.Services.AddScoped<IAnalyzeDocumentCommandPublisher, AnalyzeDocumentCommandPublisher>();
+
 
 // Handler, der die DB updated
 builder.Services.AddScoped<AnalysisCompletedEventHandler>();
@@ -54,10 +123,47 @@ builder.Services.AddHostedService<AnalysisCompletedEventConsumer>();
 
 
 
+
+
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Document Service API", Version = "v1" });
+
+    // Add JWT bearer auth so Swagger UI shows an "Authorize" button
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        In = ParameterLocation.Header,
+        Description = "Paste your JWT token here (without quotes)",
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        BearerFormat = "JWT",
+        Scheme = "bearer"
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
 
 var app = builder.Build();
+var env = app.Environment;
+
+
+app.Logger.LogInformation("Environment: {Env} (IsDevelopment={IsDev})",
+    env.EnvironmentName, env.IsDevelopment());
+
 // Seed initial data (dev/test only)
 using (var scope = app.Services.CreateScope())
 {
@@ -67,6 +173,7 @@ using (var scope = app.Services.CreateScope())
     {
         var doc1Id = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
         var doc2Id = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        var doc3Id = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
 
         db.Documents.AddRange(
             new DocumentEntity
@@ -75,8 +182,7 @@ using (var scope = app.Services.CreateScope())
                 FileName = "invoice-123.pdf",
                 Status = DocumentStatus.Uploaded,
                 AnalysisSummary = null,
-                AnalysisBlobRef = null,
-                RowVersion = Array.Empty<byte>() // in-memory provider won't enforce this anyway
+                AnalysisBlobRef = null
             },
             new DocumentEntity
             {
@@ -84,8 +190,17 @@ using (var scope = app.Services.CreateScope())
                 FileName = "contract-foo.pdf",
                 Status = DocumentStatus.Uploaded,
                 AnalysisSummary = "This contract covers cooperation terms between Foo and Bar.",
-                AnalysisBlobRef = null,
-                RowVersion = Array.Empty<byte>()
+                AnalysisBlobRef = null
+
+            },
+            new DocumentEntity
+            {
+                Id = doc3Id,
+                FileName = "order.pdf",
+                Status = DocumentStatus.Uploaded,
+                AnalysisSummary = "Order conformation.",
+                AnalysisBlobRef = null
+ 
             }
         );
 
@@ -99,7 +214,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// internal auth for worker callback
+
+app.UseAuthentication();
 app.UseAuthorization();
 
 // map vertical slices

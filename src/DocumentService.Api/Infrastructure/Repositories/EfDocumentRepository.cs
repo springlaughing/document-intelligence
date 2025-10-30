@@ -38,13 +38,14 @@ public class EfDocumentRepository : IDocumentRepository
         await _db.SaveChangesAsync(ct);
     }
 
-    public async Task SetStatusAsync(Guid documentId, DocumentStatus status, CancellationToken ct = default)
+    public async Task<bool> SetStatusAsync(Guid documentId, DocumentStatus status, CancellationToken ct = default)
     {
         var entity = await _db.Documents.FirstOrDefaultAsync(d => d.Id == documentId, ct);
-        if (entity is null) return;
+        if (entity is null) return false;
 
         entity.Status = status;
         await _db.SaveChangesAsync(ct);
+        return true;
     }
 
     public async Task<DocumentRecord?> GetAsync(Guid documentId, CancellationToken ct = default)
