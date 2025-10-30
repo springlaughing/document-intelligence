@@ -6,74 +6,33 @@ using Microsoft.Extensions.Logging;
 
 namespace DocumentService.Api.Messaging;
 
-public class AnalysisCompletedEventConsumer : BackgroundService
+public sealed class AnalysisCompletedEventConsumer : BackgroundService
 {
-    private readonly ServiceBusProcessor _processor;
-    private readonly AnalysisCompletedEventHandler _handler;
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<AnalysisCompletedEventConsumer> _logger;
+    private readonly ServiceBusMessageProcessor<AnalysisCompletedEvent> _processor;
 
     public AnalysisCompletedEventConsumer(
         IConfiguration config,
         ServiceBusClient client,
-        AnalysisCompletedEventHandler handler,
-         IServiceScopeFactory scopeFactory,
-        ILogger<AnalysisCompletedEventConsumer> logger)
+        ILogger<ServiceBusMessageProcessor<AnalysisCompletedEvent>> logger,
+        IServiceScopeFactory scopeFactory)
     {
-        _handler = handler;
-        _logger = logger;
-        _scopeFactory = scopeFactory;
+        var topic = config["ServiceBus:AnalysisCompletedTopic"] ?? "analysis-completed";
+        var subscription = config["ServiceBus:AnalysisCompletedSubscription"] ?? "document-api";
 
-        // z.B. Topic "analysis-completed", Subscription "document-api"
-        var topicName = config["ServiceBus:AnalysisCompletedTopic"] ?? "analysis-completed";
-        var subscriptionName = config["ServiceBus:AnalysisCompletedSubscription"] ?? "document-api";
-
-        _processor = client.CreateProcessor(topicName, subscriptionName);
-    }
-
-    protected override Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        _processor.ProcessMessageAsync += HandleMessageAsync;
-        _processor.ProcessErrorAsync += HandleErrorAsync;
-
-        return _processor.StartProcessingAsync(stoppingToken);
-    }
-
-    private async Task HandleMessageAsync(ProcessMessageEventArgs args)
-    {
-        try
-        {
-            var body = args.Message.Body.ToString();
-            var evt = JsonSerializer.Deserialize<AnalysisCompletedEvent>(body);
-
-            if (evt != null)
+        _processor = new ServiceBusMessageProcessor<AnalysisCompletedEvent>(
+            client,
+            logger,
+            entityName: topic,
+            subscriptionName: subscription, // topic + subscription
+            handler: async (evt, ct) =>
             {
-                using var scope = _scopeFactory.CreateScope();
-
-                var handler = scope.ServiceProvider
-                    .GetRequiredService<AnalysisCompletedEventHandler>();
-
-                await handler.HandleAsync(evt, CancellationToken.None);
-            }
-
-            await args.CompleteMessageAsync(args.Message);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to process AnalysisCompletedEvent");
-            // wenn du willst: args.AbandonMessageAsync(...) für Retry
-        }
+                using var scope = scopeFactory.CreateScope();
+                var handler = scope.ServiceProvider.GetRequiredService<AnalysisCompletedEventHandler>();
+                await handler.HandleAsync(evt, ct);
+            });
     }
 
-    private Task HandleErrorAsync(ProcessErrorEventArgs args)
-    {
-        _logger.LogError(args.Exception, "Service Bus error in AnalysisCompletedEventConsumer");
-        return Task.CompletedTask;
-    }
-
-    public override async Task StopAsync(CancellationToken cancellationToken)
-    {
-        await _processor.StopProcessingAsync(cancellationToken);
-        await base.StopAsync(cancellationToken);
-    }
+    protected override Task ExecuteAsync(CancellationToken stoppingToken) => _processor.StartAsync(stoppingToken);
+    public override Task StopAsync(CancellationToken cancellationToken) => _processor.StopAsync(cancellationToken);
+    public override void Dispose() => _processor.DisposeAsync().AsTask().GetAwaiter().GetResult();
 }

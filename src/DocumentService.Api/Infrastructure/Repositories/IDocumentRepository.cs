@@ -8,7 +8,7 @@ public interface IDocumentRepository
 
     Task CreateIfNotExistsAsync(Guid documentId, string fileName, CancellationToken ct = default);
 
-    Task SetStatusAsync(Guid documentId, DocumentStatus status, CancellationToken ct = default);
+    Task<bool> SetStatusAsync(Guid documentId, DocumentStatus status, CancellationToken ct = default);
 
     Task<DocumentRecord?> GetAsync(Guid documentId, CancellationToken ct = default);
     Task UpdateAnalysisResultAsync(Guid documentId, string summary, string blobReference, DocumentStatus status = DocumentStatus.Analyzed, CancellationToken ct = default);
