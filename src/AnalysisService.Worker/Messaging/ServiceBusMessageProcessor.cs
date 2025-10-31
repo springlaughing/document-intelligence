@@ -1,34 +1,31 @@
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using DocumentIntelligence.Contracts.Messaging;
 
 namespace AnalysisService.Worker.Messaging;
 public sealed class ServiceBusMessageProcessor<T> : IAsyncDisposable
 {
     private readonly ServiceBusProcessor _processor;
-    private readonly Func<T, CancellationToken, Task> _handler;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger _logger;
-    private readonly JsonSerializerOptions _json;
-    private readonly bool _useTopic;
+    private readonly JsonSerializerOptions _jsonOpt;
 
     public ServiceBusMessageProcessor(
         ServiceBusClient client,
+        IServiceScopeFactory scopeFactory,
         ILogger<ServiceBusMessageProcessor<T>> logger,
         // when subscriptionName is null => use queue; otherwise topic+subscription
         string entityName,
         string? subscriptionName,
-        Func<T, CancellationToken, Task> handler,
         ServiceBusProcessorOptions? options = null,
-        JsonSerializerOptions? json = null)
+        JsonSerializerOptions? jsonOpt = null)
     {
+          _scopeFactory = scopeFactory;
         _logger = logger;
-        _handler = handler;
-        _json = json ?? new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        _jsonOpt = jsonOpt ?? new JsonSerializerOptions(JsonSerializerDefaults.Web);
 
-        _useTopic = subscriptionName is not null;
-        _processor = _useTopic
-            ? client.CreateProcessor(entityName, subscriptionName!, options ?? DefaultOptions())
+        _processor = subscriptionName is not null
+            ? client.CreateProcessor(entityName, subscriptionName, options ?? DefaultOptions())
             : client.CreateProcessor(entityName, options ?? DefaultOptions());
 
         _processor.ProcessMessageAsync += HandleAsync;
@@ -46,9 +43,8 @@ public sealed class ServiceBusMessageProcessor<T> : IAsyncDisposable
     {
         try
         {
-            // safer than ToString(); respects content encoding
-            var body = args.Message.Body.ToStream();
-            var payload = await JsonSerializer.DeserializeAsync<T>(body, _json, args.CancellationToken);
+            await using var body = args.Message.Body.ToStream();
+            var payload = await JsonSerializer.DeserializeAsync<T>(body, _jsonOpt, args.CancellationToken);
             if (payload is null)
             {
                 _logger.LogWarning("Unable to deserialize {Type} - dead-lettering.", typeof(T).Name);
@@ -56,7 +52,10 @@ public sealed class ServiceBusMessageProcessor<T> : IAsyncDisposable
                 return;
             }
 
-            await _handler(payload, args.CancellationToken);
+            using var scope = _scopeFactory.CreateScope();
+            var handler = scope.ServiceProvider.GetRequiredService<IMessageHandler<T>>();
+            await handler.HandleAsync(payload, args.CancellationToken);
+
             await args.CompleteMessageAsync(args.Message, args.CancellationToken);
         }
         catch (OperationCanceledException) when (args.CancellationToken.IsCancellationRequested)

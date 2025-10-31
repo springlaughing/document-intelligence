@@ -1,15 +1,12 @@
 using DocumentIntelligence.Contracts.Contracts;
+using DocumentIntelligence.Contracts.Messaging;
 using DocumentService.Api.Infrastructure.Repositories;
 
 
 namespace DocumentService.Api.Messaging;
 
-public interface IAnalysisCompletedEventHandler
-{
-    Task HandleAsync(AnalysisCompletedEvent evt, CancellationToken ct);
-}
 
-public class AnalysisCompletedEventHandler : IAnalysisCompletedEventHandler
+public class AnalysisCompletedEventHandler : IMessageHandler<AnalysisCompletedEvent>
 {
     private readonly IDocumentRepository _repo;
     private readonly ILogger<AnalysisCompletedEventHandler> _logger;

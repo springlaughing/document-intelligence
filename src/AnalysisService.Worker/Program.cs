@@ -4,6 +4,9 @@ using AnalysisService.Worker.Messaging;
 using AnalysisService.Worker.Infrastructure;
 using Azure.Messaging.ServiceBus; 
 using DocumentIntelligence.Contracts.Messaging;
+using DocumentIntelligence.Contracts.Contracts;
+using System.Text.Json;
+
 
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -25,6 +28,7 @@ if (!builder.Environment.IsDevelopment())
     }
    
 }
+builder.Services.AddSingleton(sp => new JsonSerializerOptions(JsonSerializerDefaults.Web));
 
 builder.Services.AddSingleton(sp =>
 {
@@ -66,8 +70,9 @@ builder.Services.AddSingleton<IMessagePublisher, AzureServiceBusPublisher>();
 builder.Services.AddScoped<IAnalysisResultEventPublisher, AnalysisResultEventPublisher>();
 
 builder.Services.AddHostedService<AnalyzeDocumentCommandListener>();
+builder.Services.AddScoped<IMessageHandler<AnalyzeDocumentCommand>, AnalyzeDocumentCommandHandler>();
+
 builder.Services.AddScoped<IBlobWriter, BlobWriter>();
-builder.Services.AddScoped<IAnalysisResultEventPublisher, AnalysisResultEventPublisher>();
 
 
 builder.Services.AddSingleton<IBlobWriter, BlobWriter>(); 
