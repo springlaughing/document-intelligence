@@ -22,21 +22,29 @@ public class EfDocumentRepository : IDocumentRepository
         return await _db.Documents.AnyAsync(d => d.Id == documentId, ct);
     }
 
-    public async Task CreateIfNotExistsAsync(Guid documentId, string fileName, CancellationToken ct = default)
+    public async Task<bool> CreateIfNotExistsAsync(Guid documentId, string fileName, CancellationToken ct = default)
+{
+    var entity = new DocumentEntity
     {
-        var already = await _db.Documents.AnyAsync(d => d.Id == documentId, ct);
-        if (already) return;
+        Id = documentId,
+        FileName = fileName,
+        Status = DocumentStatus.Uploaded
+    };
 
-        var entity = new DocumentEntity
-        {
-            Id = documentId,
-            FileName = fileName,
-            Status = DocumentStatus.Uploaded
-        };
-
-        _db.Documents.Add(entity);
+    _db.Documents.Add(entity);
+    try
+    {
         await _db.SaveChangesAsync(ct);
+        return true; // created
     }
+    catch (DbUpdateException ex) when (IsUniqueKeyViolation(ex))
+    {
+        _logger.LogDebug("Document {DocumentId} already existed during CreateIfNotExists.", documentId);
+        return false; // already existed
+    }
+}
+
+
 
     public async Task<bool> SetStatusAsync(Guid documentId, DocumentStatus status, CancellationToken ct = default)
     {
@@ -94,5 +102,11 @@ public class EfDocumentRepository : IDocumentRepository
                 // - retry (re-read and reapply)
                 // - or rethrow (bubble up as failure)
             }
+        }
+
+        private static bool IsUniqueKeyViolation(DbUpdateException ex)
+        {
+            return ex.InnerException?.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase) == true
+                || ex.InnerException?.Message.Contains("duplicate key", StringComparison.OrdinalIgnoreCase) == true;
         }
 }
