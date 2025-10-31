@@ -1,0 +1,64 @@
+{
+    "UserConfig": {
+      "Namespaces": [
+        {
+          "Name": "sbemulatorns",
+          "Queues": [
+            {
+              "Name": "analyze-document",
+              "Properties": {
+                "DeadLetteringOnMessageExpiration": false,
+                "DefaultMessageTimeToLive": "PT1H",
+                "DuplicateDetectionHistoryTimeWindow": "PT20S",
+                "ForwardDeadLetteredMessagesTo": "",
+                "ForwardTo": "",
+                "LockDuration": "PT1M",
+                "MaxDeliveryCount": 10,
+                "RequiresDuplicateDetection": false,
+                "RequiresSession": false
+              }
+            }
+          ],
+          "Topics": [
+            {
+              "Name": "analysis-completed",
+              "Properties": {
+                "DefaultMessageTimeToLive": "PT1H",
+                "DuplicateDetectionHistoryTimeWindow": "PT20S",
+                "RequiresDuplicateDetection": false
+              },
+              "Subscriptions": [
+                {
+                  "Name": "document-api",
+                  "Properties": {
+                    "DeadLetteringOnMessageExpiration": false,
+                    "DefaultMessageTimeToLive": "PT1H",
+                    "LockDuration": "PT1M",
+                    "MaxDeliveryCount": 10,
+                    "ForwardDeadLetteredMessagesTo": "",
+                    "ForwardTo": "",
+                    "RequiresSession": false
+                  },
+                  "Rules": [
+                    {
+                      "Name": "$Default",
+                      "Properties": {
+                        "FilterType": "Sql",
+                        "SqlFilter": {
+                          "SqlExpression": "1=1"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "Logging": {
+      "Type": "Console"
+    }
+    }
+  }
+  
