@@ -105,7 +105,10 @@ builder.Services.AddDbContext<DocumentApiDbContext>(options =>
     options.UseInMemoryDatabase("DocumentApiDb");
     
     // Prod/Cloud später: 
-    // options.UseSqlServer(builder.Configuration.GetConnectionString("DocumentApiDb"));
+    // o.UseSqlServer(connString, sql => sql.EnableRetryOnFailure(
+    // maxRetryCount: 5,
+    // maxRetryDelay: TimeSpan.FromSeconds(5),
+    // errorNumbersToAdd: null)));
 });
 
 // Repo
@@ -220,11 +223,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthentication();
 app.UseAuthorization();
-
-// map vertical slices
-//AnalyzeDocumentEndpoint.Map(app);
-//PostAnalysisResultEndpoint.Map(app);
-//GetDocumentResultEndpoint.Map(app);
 
 app.MapControllers();
 

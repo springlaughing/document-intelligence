@@ -36,6 +36,8 @@ public class DocumentsController : ControllerBase
     [Authorize(Policy = "ReadAccess")]
     [ProducesResponseType(typeof(GetDocumentDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<GetDocumentDto>> GetDocument(Guid documentId, CancellationToken ct)
     {
         var record = await _repo.GetAsync(documentId, ct);
@@ -64,6 +66,8 @@ public class DocumentsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status202Accepted)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult> AnalyzeDocument(
         Guid documentId,
         CancellationToken ct)
@@ -115,25 +119,24 @@ public class DocumentsController : ControllerBase
     [Consumes("application/json")]
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<ActionResult> UploadDocument(
-        [FromBody] UploadDocumentDto request,
-        CancellationToken ct)
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult> UploadDocument([FromBody] UploadDocumentDto request, CancellationToken ct)
+{
+    if (string.IsNullOrWhiteSpace(request.FileName))
+        return BadRequest(Problem(title: "FileName is required.", detail: "Provide a non-empty file name."));
+
+    var created = await _repo.CreateIfNotExistsAsync(request.DocumentId, request.FileName, ct);
+
+    if (created)
     {
-        var existed = await _repo.ExistsAsync(request.DocumentId, ct);
-        await _repo.CreateIfNotExistsAsync(request.DocumentId, request.FileName, ct);
-
-        if (existed)
-        {
-            _logger.LogInformation("Document already existed {DocumentId} ({FileName})",
-                request.DocumentId, request.FileName);
-            return Ok(new { documentId = request.DocumentId });
-        }
-
-        _logger.LogInformation("Registered new document {DocumentId} ({FileName})",
-            request.DocumentId, request.FileName);
-
-        return CreatedAtAction(nameof(GetDocument),
-            new { documentId = request.DocumentId },
-            new { documentId = request.DocumentId });
+        _logger.LogInformation("Registered new document {DocumentId} ({FileName})", request.DocumentId, request.FileName);
+        return CreatedAtAction(nameof(GetDocument), new { documentId = request.DocumentId }, new { documentId = request.DocumentId });
     }
+
+    _logger.LogInformation("Document already existed {DocumentId} ({FileName})", request.DocumentId, request.FileName);
+    return Ok(new { documentId = request.DocumentId });
+}
 }

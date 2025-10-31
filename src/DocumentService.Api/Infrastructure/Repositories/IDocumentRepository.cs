@@ -6,7 +6,7 @@ public interface IDocumentRepository
 {
     Task<bool> ExistsAsync(Guid documentId, CancellationToken ct = default);
 
-    Task CreateIfNotExistsAsync(Guid documentId, string fileName, CancellationToken ct = default);
+    Task<bool> CreateIfNotExistsAsync(Guid documentId, string fileName, CancellationToken ct = default);
 
     Task<bool> SetStatusAsync(Guid documentId, DocumentStatus status, CancellationToken ct = default);
 
