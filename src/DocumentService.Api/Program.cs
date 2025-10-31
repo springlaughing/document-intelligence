@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
 using DocumentIntelligence.Contracts.Messaging;
 using DocumentIntelligence.Contracts.DomainContracts;
+using DocumentIntelligence.Contracts.Contracts;
 using DocumentService.Api.Messaging;
 using DocumentService.Api.Infrastructure.Repositories;
 using DocumentService.Api.Infrastructure.Ef;
@@ -11,13 +12,14 @@ using DocumentService.Api.Infrastructure.Ef.Entities;
 using Microsoft.EntityFrameworkCore;
 using Azure.Messaging.ServiceBus; 
 using Microsoft.OpenApi.Models;
+using System.Text.Json;
 
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Logging.ClearProviders();
 builder.Logging.AddSimpleConsole(o => o.TimestampFormat = "HH:mm:ss ");
-
+builder.Services.AddSingleton(sp => new JsonSerializerOptions(JsonSerializerDefaults.Web));
 if (!builder.Environment.IsDevelopment())
 {
     var aiConnStr =
@@ -115,10 +117,11 @@ builder.Services.AddScoped<IAnalyzeDocumentCommandPublisher, AnalyzeDocumentComm
 
 
 // Handler, der die DB updated
-builder.Services.AddScoped<AnalysisCompletedEventHandler>();
+builder.Services.AddScoped<IMessageHandler<AnalysisCompletedEvent>, AnalysisCompletedEventHandler>();
+
 
 // Background Listener für das Event
-builder.Services.AddHostedService<AnalysisCompletedEventConsumer>();
+builder.Services.AddHostedService<AnalysisCompletedEventListener>();
 
 
 

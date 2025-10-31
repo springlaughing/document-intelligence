@@ -8,12 +8,14 @@ namespace DocumentService.Api.Messaging;
 public class AzureServiceBusPublisher : IMessagePublisher, IAsyncDisposable
 {
     private readonly ServiceBusClient _client;
+    private readonly JsonSerializerOptions _jsonOpt;
     private readonly Dictionary<string, ServiceBusSender> _senders = new();
 
 
-    public AzureServiceBusPublisher(ServiceBusClient client)
+    public AzureServiceBusPublisher(ServiceBusClient client, JsonSerializerOptions jsonOpt)
     {
         _client = client;
+        _jsonOpt = jsonOpt;
     }
 
     public async Task PublishAsync<T>(string entityName, T message, CancellationToken ct = default)
@@ -24,7 +26,7 @@ public class AzureServiceBusPublisher : IMessagePublisher, IAsyncDisposable
             _senders[entityName] = sender;
         }
 
-        var payload = JsonSerializer.Serialize(message);
+        var payload = JsonSerializer.Serialize(message, _jsonOpt);
         var busMessage = new ServiceBusMessage(payload)
         {
             ContentType = "application/json",

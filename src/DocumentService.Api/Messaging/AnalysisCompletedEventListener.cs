@@ -6,30 +6,29 @@ using Microsoft.Extensions.Logging;
 
 namespace DocumentService.Api.Messaging;
 
-public sealed class AnalysisCompletedEventConsumer : BackgroundService
+public sealed class AnalysisCompletedEventListener : BackgroundService
 {
     private readonly ServiceBusMessageProcessor<AnalysisCompletedEvent> _processor;
 
-    public AnalysisCompletedEventConsumer(
+    public AnalysisCompletedEventListener(
         IConfiguration config,
         ServiceBusClient client,
         ILogger<ServiceBusMessageProcessor<AnalysisCompletedEvent>> logger,
-        IServiceScopeFactory scopeFactory)
+        IServiceScopeFactory scopeFactory,
+        JsonSerializerOptions jsonOpt)
     {
-        var topic = config["ServiceBus:AnalysisCompletedTopic"] ?? "analysis-completed";
-        var subscription = config["ServiceBus:AnalysisCompletedSubscription"] ?? "document-api";
+        var topic = config["AzureServiceBus:AnalysisCompletedTopic"] ?? "analysis-completed";
+        var subscription = config["AzureServiceBus:AnalysisCompletedSubscription"] ?? "document-api";
 
         _processor = new ServiceBusMessageProcessor<AnalysisCompletedEvent>(
             client,
+            scopeFactory,
             logger,
             entityName: topic,
-            subscriptionName: subscription, // topic + subscription
-            handler: async (evt, ct) =>
-            {
-                using var scope = scopeFactory.CreateScope();
-                var handler = scope.ServiceProvider.GetRequiredService<AnalysisCompletedEventHandler>();
-                await handler.HandleAsync(evt, ct);
-            });
+            subscriptionName: subscription,
+            options: null,
+            jsonOpt: jsonOpt);// topic + subscription
+            
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken) => _processor.StartAsync(stoppingToken);

@@ -17,7 +17,7 @@ namespace DocumentService.Api.Messaging
 
             // Which queue/topic the API should send "analyze doc" commands to
             _queueName =
-                config["ServiceBus:AnalyzeDocumentQueueName"]
+                config["AzureServiceBus:AnalyzeDocumentQueueName"]
                 ?? "analyze-document";
         }
 
