@@ -482,3 +482,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+/docker/env/*.env
+!/docker/env/*.env.sample

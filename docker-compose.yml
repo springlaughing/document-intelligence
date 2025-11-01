@@ -4,13 +4,12 @@ services:
   # --- Azure Service Bus Emulator ---
   sqledge:
     image: mcr.microsoft.com/azure-sql-edge:latest
-    environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "SbEmuAdmin!2025"
+    env_file:
+      - ./docker/env/sqledge.env
     ports:
       - "1433:1433"   # optional, but good for debugging
     healthcheck:
-      test: ["CMD-SHELL", "sqlcmd -S localhost -U sa -P YourStrong@Passw0rd -Q 'SELECT 1' || exit 1"]
+      test: ["CMD-SHELL", "sqlcmd -S localhost -U sa -P $${MSSQL_SA_PASSWORD} -Q 'SELECT 1' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -19,11 +18,8 @@ services:
 
   servicebus:
     image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
-    environment:
-      SQL_SERVER: sqledge
-      MSSQL_SA_PASSWORD: "SbEmuAdmin!2025"
-      ACCEPT_EULA: Y
-      SQL_WAIT_INTERVAL: 20
+    env_file:
+      - ./docker/env/servicebus.env
     volumes:
       - ./infrastructure/servicebus-config.json:/ServiceBus_Emulator/ConfigFiles/Config.json
     ports:
@@ -40,12 +36,8 @@ services:
     build:
       context: .
       dockerfile: src/DocumentService.Api/Dockerfile
-    environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      AzureServiceBus__ConnectionString: "Endpoint=sb://servicebus/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=local;UseDevelopmentEmulator=true;"
-      AzureServiceBus__AnalyzeDocumentQueueName: "analyze-document"
-      AzureServiceBus__AnalysisCompletedTopicName: "analysis-completed"
-      AzureServiceBus__AnalysisCompletedSubscriptionName: "document-api"
+    env_file:
+      - ./docker/env/api.env
     ports:
       - "5140:8080"
     depends_on:
@@ -58,11 +50,8 @@ services:
     build:
       context: .
       dockerfile: src/AnalysisService.Worker/Dockerfile
-    environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      AzureServiceBus__ConnectionString: "Endpoint=sb://servicebus/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=local;UseDevelopmentEmulator=true;"
-      AzureServiceBus__AnalyzeDocumentQueueName: "analyze-document"
-      AzureServiceBus__AnalysisCompletedTopicName: "analysis-completed"
+    env_file:
+      - ./docker/env/worker.env
     depends_on:
       - servicebus
     networks:

@@ -1,13 +1,14 @@
-# Stage 1: Build
+# Build
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-WORKDIR /src
-COPY . .
-RUN dotnet restore src/AnalysisService.Worker/AnalysisService.Worker.csproj
-RUN dotnet publish src/AnalysisService.Worker/AnalysisService.Worker.csproj -c Release -o /app/publish
-
-# Stage 2: Runtime
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
-COPY --from=build /app/publish .
-ENTRYPOINT ["dotnet", "AnalysisService.Worker.dll"]
+COPY DocumentIntelligence.sln ./
+COPY src ./src
+COPY tests ./tests
+RUN dotnet restore src/AnalysisService.Worker/AnalysisService.Worker.csproj
+RUN dotnet publish src/AnalysisService.Worker/AnalysisService.Worker.csproj -c Release -o /out /p:UseAppHost=false
 
+# Runtime
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
+WORKDIR /app
+COPY --from=build /out .
+ENTRYPOINT ["dotnet", "AnalysisService.Worker.dll"]
