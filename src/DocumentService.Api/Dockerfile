@@ -2,9 +2,10 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /app
 
-COPY ../../DocumentIntelligence.sln ./
-COPY ../../src ./src
-COPY ../../tests ./tests
+# Paths are relative to the build context root (repo root)
+COPY DocumentIntelligence.sln ./
+COPY src ./src
+COPY tests ./tests
 
 RUN dotnet restore src/DocumentService.Api/DocumentService.Api.csproj
 RUN dotnet publish src/DocumentService.Api/DocumentService.Api.csproj -c Release -o /out

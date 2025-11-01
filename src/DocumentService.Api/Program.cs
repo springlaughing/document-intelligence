@@ -19,6 +19,27 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Logging.ClearProviders();
 builder.Logging.AddSimpleConsole(o => o.TimestampFormat = "HH:mm:ss ");
+
+var authMode = builder.Configuration["AUTH_MODE"] ?? "userjwts";
+
+if (authMode.Equals("userjwts", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(o => builder.Configuration.Bind("Authentication:Schemes:Bearer", o)); 
+}
+else if (authMode.Equals("entra", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services
+        .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("EntraId"));
+}
+else
+{
+    throw new InvalidOperationException($"Unknown AUTH_MODE: {authMode}");
+}
+
+
+
 builder.Services.AddSingleton(sp => new JsonSerializerOptions(JsonSerializerDefaults.Web));
 if (!builder.Environment.IsDevelopment())
 {
@@ -71,18 +92,7 @@ builder.Services.AddSingleton(sp =>
 // 1. Add controllers (classic MVC controller style)
 builder.Services.AddControllers();
 
-if (builder.Environment.IsDevelopment())
-{
-    // Local dev: use dotnet user-jwts (no Authority needed)
-    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-        .AddJwtBearer(); // picks up settings auto-created by `dotnet user-jwts`
-}
-else
-{
-    // Cloud: real Entra ID (HTTPS authority)
-    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-        .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("EntraId"));
-}
+
 
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("ReadAccess", policy =>
