@@ -11,6 +11,12 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AnalysisService.Worker", "s
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocumentIntelligence.Contracts", "src\DocumentIntelligence.Contracts\DocumentIntelligence.Contracts.csproj", "{BD3CCE6F-D112-4B6E-864C-7D4720CA6F33}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{47937B65-704C-4BF4-97E6-F3AA1A99FC38}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocumentService.Api.Tests", "tests\DocumentService.Api.Tests\DocumentService.Api.Tests.csproj", "{E48D53AF-91D1-4720-87B7-5A2F71E39CDD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AnalysisService.Worker.Tests", "tests\AnalysisService.Worker.Tests\AnalysisService.Worker.Tests.csproj", "{05DBD813-2759-460A-A260-C54D4FF6C603}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -32,10 +38,20 @@ Global
 		{BD3CCE6F-D112-4B6E-864C-7D4720CA6F33}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BD3CCE6F-D112-4B6E-864C-7D4720CA6F33}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BD3CCE6F-D112-4B6E-864C-7D4720CA6F33}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E48D53AF-91D1-4720-87B7-5A2F71E39CDD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E48D53AF-91D1-4720-87B7-5A2F71E39CDD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E48D53AF-91D1-4720-87B7-5A2F71E39CDD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E48D53AF-91D1-4720-87B7-5A2F71E39CDD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{05DBD813-2759-460A-A260-C54D4FF6C603}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{05DBD813-2759-460A-A260-C54D4FF6C603}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{05DBD813-2759-460A-A260-C54D4FF6C603}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{05DBD813-2759-460A-A260-C54D4FF6C603}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{C11AEA2E-0B42-4F7E-9AF3-C1945865FE35} = {B0DDEF29-3DC6-41D7-9D7F-B9039F3462E2}
 		{8F3F9F10-2D47-4DBC-B809-7A54B7BCF84C} = {B0DDEF29-3DC6-41D7-9D7F-B9039F3462E2}
 		{BD3CCE6F-D112-4B6E-864C-7D4720CA6F33} = {B0DDEF29-3DC6-41D7-9D7F-B9039F3462E2}
+		{E48D53AF-91D1-4720-87B7-5A2F71E39CDD} = {47937B65-704C-4BF4-97E6-F3AA1A99FC38}
+		{05DBD813-2759-460A-A260-C54D4FF6C603} = {47937B65-704C-4BF4-97E6-F3AA1A99FC38}
 	EndGlobalSection
 EndGlobal
