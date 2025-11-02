@@ -3,7 +3,7 @@ using DocumentIntelligence.Contracts.Messaging;
 using Azure.Messaging.ServiceBus;
 
 namespace AnalysisService.Worker.Messaging;
-//  Low-level, generic Service Bus publisher
+// Low-level, generic Service Bus publisher
 // Sends messages (commands) to a queue/topic in Azure Service Bus or the local Service Bus Emulator.
 public class AzureServiceBusPublisher : IMessagePublisher, IAsyncDisposable
 {

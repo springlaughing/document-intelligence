@@ -14,7 +14,6 @@ public sealed class ServiceBusMessageProcessor<T> : IAsyncDisposable
         ServiceBusClient client,
         IServiceScopeFactory scopeFactory,
         ILogger<ServiceBusMessageProcessor<T>> logger,
-        // when subscriptionName is null => use queue; otherwise topic+subscription
         string entityName,
         string? subscriptionName,
         ServiceBusProcessorOptions? options = null,
@@ -66,7 +65,7 @@ public sealed class ServiceBusMessageProcessor<T> : IAsyncDisposable
         {
             _logger.LogError(ex, "Error handling {Type}. DeliveryCount={Count}", typeof(T).Name, args.Message.DeliveryCount);
 
-            // simple retry/DLQ policy: after N attempts, dead-letter
+            // retry/DLQ policy: after N attempts, dead-letter
             if (args.Message.DeliveryCount >= 5)
                 await args.DeadLetterMessageAsync(args.Message, "MaxDeliveryExceeded", ex.Message);
             else

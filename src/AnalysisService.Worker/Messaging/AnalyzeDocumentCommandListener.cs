@@ -17,7 +17,7 @@ public sealed class AnalyzeDocumentCommandListener : BackgroundService
     {
         var queueName = config["AzureServiceBus:AnalyzeDocumentQueueName"] ?? "analyze-document";
 
-        // wire the per-message handler via a scope
+        // per-message handler wired via scope
         _processor = new ServiceBusMessageProcessor<AnalyzeDocumentCommand>(
             client,
             scopeFactory,

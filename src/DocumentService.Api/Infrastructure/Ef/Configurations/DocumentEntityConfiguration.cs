@@ -12,7 +12,7 @@ namespace DocumentService.Api.Infrastructure.Ef.Configurations
             // Tabelle + Key
             doc.ToTable("Documents"); // explizit, damit Migrations stabil bleiben
             doc.HasKey(d => d.Id);
-            //Id-Spalte ist Primary Key deswegen hat automatisch schon einen Index in der Datenbank. Du brauchst also keinen zusätzlichen HasIndex(d => d.Id)
+            //Id-Spalte ist Primary Key deswegen hat automatisch schon einen Index in der Datenbank. Man keinen zusätzlichen HasIndex(d => d.Id)
 
             // Columns
             doc.Property(d => d.Id)
@@ -22,7 +22,7 @@ namespace DocumentService.Api.Infrastructure.Ef.Configurations
 
             doc.Property(d => d.FileName)
                .IsRequired()
-               .HasMaxLength(260); // Windows PFN Limit-ish / anpassen je nach Bedarf
+               .HasMaxLength(260); 
 
             doc.Property(d => d.Status)
                .IsRequired()
@@ -30,7 +30,7 @@ namespace DocumentService.Api.Infrastructure.Ef.Configurations
                .HasMaxLength(50);            // schützt vor unendlich langen Enums
 
             doc.Property(d => d.AnalysisSummary)
-               .HasMaxLength(4000); // schützt DB vor Romanen. Zahl kannst du anpassen.
+               .HasMaxLength(4000); 
 
             doc.Property(d => d.ExtractedEntities)
                 .HasConversion(
@@ -49,14 +49,12 @@ namespace DocumentService.Api.Infrastructure.Ef.Configurations
             // Optimistic Concurrency / RowVersion
             doc.Property(d => d.RowVersion)
                .IsRowVersion()
-               .IsConcurrencyToken(); // explizit machen ist nice
+               .IsConcurrencyToken(); 
 
-            // Optional: Indizes
-            // Falls du häufig nach Status filterst (z.B. "alle PENDING Dokumente abholen")
+            // Optional: Indizieren
+            // Falls man häufig nach Status filtert (z.B. "alle PENDING Dokumente abholen")
             doc.HasIndex(d => d.Status);
 
-            // Falls du oft nach FileName suchst (z.B. Duplikat-Prüfung)
-            // doc.HasIndex(d => d.FileName);
         }
     }
 }

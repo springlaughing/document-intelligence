@@ -72,7 +72,7 @@ tests/
 
 ## 🐳 Docker Quick Start (API + Worker + Service Bus Emulator)
 
-> Runs everything in containers. No local SDKs required except a small step to mint a dev JWT + signing key.
+> Runs everything in containers. No local SDKs required except a small step to generate a dev JWT + signing key.
 
 ### Prereqs
 
@@ -82,7 +82,7 @@ tests/
 
 ### 1. Clone & prepare env files
 ```bash
-git clone <your-repo-url>
+git clone <repo-url>
 cd <repo-root>
 
 # create local env files from templates

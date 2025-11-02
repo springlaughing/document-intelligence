@@ -28,7 +28,7 @@ public sealed class AnalyzeDocumentCommandHandler : IMessageHandler<AnalyzeDocum
 
         _logger.LogInformation("Handling AnalyzeDocumentCommand for {DocumentId}", cmd.DocumentId);
 
-        // demo logic; replace with real analysis
+        // demo analysis
         var extractedEntities = new[] { "InvoiceNo:12345", "Amount:99.99" };
         var summary = $"Auto summary for {cmd.FileName}";
 

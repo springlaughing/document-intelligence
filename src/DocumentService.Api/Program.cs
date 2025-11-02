@@ -61,9 +61,9 @@ builder.Services.AddSingleton(sp =>
     var cfg = sp.GetRequiredService<IConfiguration>();
 
     var cs  = cfg.GetConnectionString("AzureServiceBus")
-             ?? cfg["AzureServiceBus:ConnectionString"]; // dev/user-secrets
+             ?? cfg["AzureServiceBus:ConnectionString"]; // dev
 
-    var fqn = cfg["AzureServiceBus:FullyQualifiedNamespace"]; // "<ns>.servicebus.windows.net"
+    var fqn = cfg["AzureServiceBus:FullyQualifiedNamespace"]; // cloud
 
     var options = new ServiceBusClientOptions
     {
@@ -77,7 +77,7 @@ builder.Services.AddSingleton(sp =>
     };
 
     if (!string.IsNullOrWhiteSpace(cs))
-        return new ServiceBusClient(cs, options); // dev/conn-string
+        return new ServiceBusClient(cs, options); 
 
     if (string.IsNullOrWhiteSpace(fqn))
         throw new InvalidOperationException("AzureServiceBus connection not configured.");
@@ -86,13 +86,11 @@ builder.Services.AddSingleton(sp =>
         fqn,
         new Azure.Identity.DefaultAzureCredential(),
         options
-    ); // cloud/MSI
+    ); // cloud
 });
 
-// 1. Add controllers (classic MVC controller style)
+
 builder.Services.AddControllers();
-
-
 
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("ReadAccess", policy =>
@@ -107,14 +105,13 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy("AdminOnly", p => p.RequireRole("admin"));
 
 
-// 🔹 EF Core DbContext registrieren
 builder.Services.AddDbContext<DocumentApiDbContext>(options =>
 {
     
     // InMemory (für lokale Tests)
     options.UseInMemoryDatabase("DocumentApiDb");
     
-    // Prod/Cloud später: 
+    // Cloud später: 
     // o.UseSqlServer(connString, sql => sql.EnableRetryOnFailure(
     // maxRetryCount: 5,
     // maxRetryDelay: TimeSpan.FromSeconds(5),
@@ -127,18 +124,8 @@ builder.Services.AddScoped<IDocumentRepository, EfDocumentRepository>();
 // Messaging
 builder.Services.AddSingleton<IMessagePublisher, AzureServiceBusPublisher>();
 builder.Services.AddScoped<IAnalyzeDocumentCommandPublisher, AnalyzeDocumentCommandPublisher>();
-
-
-// Handler, der die DB updated
 builder.Services.AddScoped<IMessageHandler<AnalysisCompletedEvent>, AnalysisCompletedEventHandler>();
-
-
-// Background Listener für das Event
 builder.Services.AddHostedService<AnalysisCompletedEventListener>();
-
-
-
-
 
 
 builder.Services.AddEndpointsApiExplorer();
@@ -146,7 +133,7 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "Document Service API", Version = "v1" });
 
-    // Add JWT bearer auth so Swagger UI shows an "Authorize" button
+    // JWT bearer auth allows Swagger UI to show an "Authorize" button (for dev)
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
@@ -180,7 +167,7 @@ var env = app.Environment;
 app.Logger.LogInformation("Environment: {Env} (IsDevelopment={IsDev})",
     env.EnvironmentName, env.IsDevelopment());
 
-// Seed initial data (dev/test only)
+// Seed initial data (dev only)
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<DocumentApiDbContext>();
