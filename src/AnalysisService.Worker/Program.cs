@@ -35,9 +35,9 @@ builder.Services.AddSingleton(sp =>
     var cfg = sp.GetRequiredService<IConfiguration>();
 
     var cs  = cfg.GetConnectionString("AzureServiceBus")
-             ?? cfg["AzureServiceBus:ConnectionString"]; // dev/user-secrets
+             ?? cfg["AzureServiceBus:ConnectionString"]; 
 
-    var fqn = cfg["AzureServiceBus:FullyQualifiedNamespace"]; // "<ns>.servicebus.windows.net"
+    var fqn = cfg["AzureServiceBus:FullyQualifiedNamespace"]; 
 
     var options = new ServiceBusClientOptions
     {

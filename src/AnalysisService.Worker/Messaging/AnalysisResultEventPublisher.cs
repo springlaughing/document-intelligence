@@ -15,7 +15,6 @@ namespace AnalysisService.Worker.Messaging
         {
             _bus = bus;
 
-            // Where "analysis finished" events should go
             _topicName = config["AzureServiceBus:AnalysisCompletedTopic"] ?? "analysis-completed";
         }
 

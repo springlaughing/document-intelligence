@@ -30,7 +30,7 @@ public class DocumentsController : ControllerBase
         _logger = logger;
     }
 
-    // ✅ GET /api/documents/{documentId}
+    // GET /api/documents/{documentId}
     // Readers (role user/admin or scope read)
     [HttpGet("{documentId:guid}")]
     [Authorize(Policy = "ReadAccess")]
@@ -57,9 +57,8 @@ public class DocumentsController : ControllerBase
         return Ok(dto);
     }
 
-    // ✅ POST /api/documents/{documentId}/analyze
+    // POST /api/documents/{documentId}/analyze
     // Writers (role admin or scope write)
-    // Body is OPTIONAL now; if FileName is not provided, we try to load it from the repo.
     [HttpPost("{documentId:guid}/analyze")]
     [Authorize(Policy = "WriteAccess")]
     [Consumes("application/json")]
@@ -73,8 +72,7 @@ public class DocumentsController : ControllerBase
         CancellationToken ct)
     {
 
-        // If no filename provided, try to load it; if not found, 404 or 400?
-        // Here: if not found at all, 404. If found but filename empty => 400.
+        // If record not found at all, 404. If found but filename empty => 400.
         var record = await _repo.GetAsync(documentId, ct);
         if (record is null)
         {
@@ -92,7 +90,6 @@ public class DocumentsController : ControllerBase
             });
         }
 
-        // Move to Analyzing (repo should be idempotent)
         await _repo.SetStatusAsync(documentId, DocumentStatus.Analyzing, ct);
 
         var command = new AnalyzeDocumentCommand(
@@ -112,7 +109,7 @@ public class DocumentsController : ControllerBase
         return AcceptedAtAction(nameof(GetDocument), new { documentId }, new { documentId });
     }
 
-    // ✅ POST /api/documents
+    // POST /api/documents
     // Writers (admin or scope write)
     [HttpPost]
     [Authorize(Policy = "WriteAccess")]

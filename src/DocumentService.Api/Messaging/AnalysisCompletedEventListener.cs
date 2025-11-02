@@ -27,7 +27,7 @@ public sealed class AnalysisCompletedEventListener : BackgroundService
             entityName: topic,
             subscriptionName: subscription,
             options: null,
-            jsonOpt: jsonOpt);// topic + subscription
+            jsonOpt: jsonOpt);
             
     }
 
