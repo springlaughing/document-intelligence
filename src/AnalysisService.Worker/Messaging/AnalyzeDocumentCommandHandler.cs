@@ -1,6 +1,6 @@
 using AnalysisService.Worker.Infrastructure;
 using DocumentIntelligence.Contracts.Contracts;
-using DocumentIntelligence.Contracts.Messaging;
+using DocumentIntelligence.Messaging;
 using Microsoft.Extensions.Logging;
 
 namespace AnalysisService.Worker.Messaging;

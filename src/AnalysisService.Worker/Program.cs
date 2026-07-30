@@ -3,7 +3,7 @@ using OpenTelemetry.Resources;
 using AnalysisService.Worker.Messaging;
 using AnalysisService.Worker.Infrastructure;
 using Azure.Messaging.ServiceBus; 
-using DocumentIntelligence.Contracts.Messaging;
+using DocumentIntelligence.Messaging;
 using DocumentIntelligence.Contracts.Contracts;
 using System.Text.Json;
 using System.Text.Json.Serialization;

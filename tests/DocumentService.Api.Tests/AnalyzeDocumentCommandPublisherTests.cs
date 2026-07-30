@@ -1,7 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using DocumentIntelligence.Contracts.Contracts;
-using DocumentIntelligence.Contracts.Messaging;
+using DocumentIntelligence.Messaging;
 using DocumentService.Api.Messaging;
 using Microsoft.Extensions.Configuration;
 using Moq;

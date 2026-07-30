@@ -2,7 +2,7 @@ using Azure.Monitor.OpenTelemetry.AspNetCore;
 using OpenTelemetry.Resources;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
-using DocumentIntelligence.Contracts.Messaging;
+using DocumentIntelligence.Messaging;
 using DocumentIntelligence.Contracts.DomainContracts;
 using DocumentIntelligence.Contracts.Contracts;
 using DocumentService.Api.Messaging;

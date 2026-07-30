@@ -1,8 +1,9 @@
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
-using DocumentIntelligence.Contracts.Messaging;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
-namespace DocumentService.Api.Messaging;
+namespace DocumentIntelligence.Messaging;
 public sealed class ServiceBusMessageProcessor<T> : IAsyncDisposable
 {
     private readonly ServiceBusProcessor _processor;
@@ -82,7 +83,7 @@ public sealed class ServiceBusMessageProcessor<T> : IAsyncDisposable
     public Task StartAsync(CancellationToken stoppingToken) => _processor.StartProcessingAsync(stoppingToken);
 
     public Task StopAsync(CancellationToken cancellationToken) => _processor.StopProcessingAsync(cancellationToken);
-    
+
 
     public async ValueTask DisposeAsync()
     {

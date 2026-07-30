@@ -1,6 +1,7 @@
 using System.Reflection;
 using AnalysisService.Worker.Messaging;
 using DocumentIntelligence.Contracts.Contracts;
+using DocumentIntelligence.Messaging;
 using DocumentService.Api.Controllers;
 using NetArchTest.Rules;
 
@@ -12,8 +13,17 @@ namespace DocumentIntelligence.ArchitectureTests;
 public class ModuleBoundaryTests
 {
     private static readonly Assembly ContractsAssembly = typeof(AnalyzeDocumentCommand).Assembly;
+    private static readonly Assembly MessagingAssembly = typeof(IMessagePublisher).Assembly;
     private static readonly Assembly ApiAssembly = typeof(DocumentsController).Assembly;
     private static readonly Assembly WorkerAssembly = typeof(AnalyzeDocumentCommandHandler).Assembly;
+
+    private static readonly string[] ProjectAssemblyNames =
+    {
+        "DocumentIntelligence.Contracts",
+        "DocumentIntelligence.Messaging",
+        "DocumentService.Api",
+        "AnalysisService.Worker"
+    };
 
     // Namespace prefixes of infrastructure the shared contracts must stay clear of.
     private static readonly string[] ForbiddenInContracts =
@@ -81,6 +91,39 @@ public class ModuleBoundaryTests
             .GetResult();
 
         Assert.True(result.IsSuccessful, Describe(result));
+    }
+
+    [Fact]
+    public void Messaging_is_pure_transport()
+    {
+        // The message pump is generic over the message type, so it never needs to know
+        // what a message means. Keeping it free of every other project in the solution
+        // is what stops it drifting into a dumping ground for shared code.
+        var offenders = MessagingAssembly.GetReferencedAssemblies()
+            .Select(a => a.Name ?? "")
+            .Where(name => ProjectAssemblyNames.Contains(name))
+            .ToArray();
+
+        Assert.True(
+            offenders.Length == 0,
+            "DocumentIntelligence.Messaging must stay transport-only, but it references: "
+            + string.Join(", ", offenders));
+    }
+
+    [Fact]
+    public void Contracts_depend_on_nothing_in_this_solution()
+    {
+        // Contracts are the wire format. Anything they reference becomes a de facto part
+        // of the contract for every service that consumes them.
+        var offenders = ContractsAssembly.GetReferencedAssemblies()
+            .Select(a => a.Name ?? "")
+            .Where(name => ProjectAssemblyNames.Contains(name))
+            .ToArray();
+
+        Assert.True(
+            offenders.Length == 0,
+            "DocumentIntelligence.Contracts must not depend on other projects, but references: "
+            + string.Join(", ", offenders));
     }
 
     private static void AssertDoesNotReference(Assembly source, Assembly forbidden)

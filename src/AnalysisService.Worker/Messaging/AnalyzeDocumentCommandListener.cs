@@ -1,4 +1,5 @@
 using DocumentIntelligence.Contracts.Contracts;
+using DocumentIntelligence.Messaging;
 using Azure.Messaging.ServiceBus;
 using System.Text.Json;
 

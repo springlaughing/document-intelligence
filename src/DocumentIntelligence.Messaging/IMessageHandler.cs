@@ -1,4 +1,4 @@
-namespace DocumentIntelligence.Contracts.Messaging;
+namespace DocumentIntelligence.Messaging;
 
 public interface IMessageHandler<T>
 {

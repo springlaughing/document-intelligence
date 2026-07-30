@@ -28,6 +28,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DocumentIntelligence.Contracts\DocumentIntelligence.Contracts.csproj" />
+    <ProjectReference Include="..\DocumentIntelligence.Messaging\DocumentIntelligence.Messaging.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,16 +1,15 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
-using DocumentIntelligence.Contracts.Messaging;
 using Azure.Messaging.ServiceBus;
 
-namespace AnalysisService.Worker.Messaging;
+namespace DocumentIntelligence.Messaging;
 // Low-level, generic Service Bus publisher
 // Sends messages (commands) to a queue/topic in Azure Service Bus or the local Service Bus Emulator.
 public class AzureServiceBusPublisher : IMessagePublisher, IAsyncDisposable
 {
-    private readonly JsonSerializerOptions _jsonOpt;
     private readonly ServiceBusClient _client;
-    // Registered as a singleton and shared across concurrently processed messages,
+    private readonly JsonSerializerOptions _jsonOpt;
+    // Registered as a singleton and shared across concurrent callers,
     // so the sender cache must be thread-safe.
     private readonly ConcurrentDictionary<string, ServiceBusSender> _senders = new();
 

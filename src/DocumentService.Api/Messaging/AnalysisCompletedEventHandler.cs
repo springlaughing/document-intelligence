@@ -1,6 +1,6 @@
 using DocumentIntelligence.Contracts.Contracts;
 using DocumentIntelligence.Contracts.DomainContracts;
-using DocumentIntelligence.Contracts.Messaging;
+using DocumentIntelligence.Messaging;
 using DocumentService.Api.Infrastructure.Repositories;
 
 
