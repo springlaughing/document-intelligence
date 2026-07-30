@@ -1,6 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
-using DocumentIntelligence.Contracts.Contracts;
+using DocumentIntelligence.Contracts;
 using DocumentService.Api.Domain;
 using DocumentService.Api.Features.Documents;
 using DocumentService.Api.Features.Documents.RequestAnalysis;

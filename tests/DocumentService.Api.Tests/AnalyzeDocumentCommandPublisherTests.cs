@@ -1,6 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
-using DocumentIntelligence.Contracts.Contracts;
+using DocumentIntelligence.Contracts;
 using DocumentIntelligence.Messaging;
 using DocumentService.Api.Features.Documents.RequestAnalysis;
 using Microsoft.Extensions.Configuration;

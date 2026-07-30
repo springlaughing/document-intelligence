@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
 using DocumentIntelligence.Messaging;
 using DocumentService.Api.Domain;
-using DocumentIntelligence.Contracts.Contracts;
+using DocumentIntelligence.Contracts;
 using DocumentService.Api.Features.Documents.RecordAnalysisResult;
 using DocumentService.Api.Features.Documents.RequestAnalysis;
 using DocumentService.Api.Infrastructure.Repositories;

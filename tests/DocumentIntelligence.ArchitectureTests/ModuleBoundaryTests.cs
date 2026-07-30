@@ -1,6 +1,6 @@
 using System.Reflection;
 using AnalysisService.Worker.Messaging;
-using DocumentIntelligence.Contracts.Contracts;
+using DocumentIntelligence.Contracts;
 using DocumentIntelligence.Messaging;
 using DocumentService.Api.Features.Documents.GetDocument;
 using NetArchTest.Rules;

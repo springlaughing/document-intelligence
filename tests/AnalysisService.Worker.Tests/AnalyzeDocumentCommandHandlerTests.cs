@@ -1,6 +1,6 @@
 using AnalysisService.Worker.Infrastructure;
 using AnalysisService.Worker.Messaging;
-using DocumentIntelligence.Contracts.Contracts;
+using DocumentIntelligence.Contracts;
 using Microsoft.Extensions.Logging;
 using Moq;
 

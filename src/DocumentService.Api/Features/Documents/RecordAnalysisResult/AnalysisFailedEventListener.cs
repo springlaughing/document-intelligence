@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
-using DocumentIntelligence.Contracts.Contracts;
+using DocumentIntelligence.Contracts;
 using DocumentIntelligence.Messaging;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

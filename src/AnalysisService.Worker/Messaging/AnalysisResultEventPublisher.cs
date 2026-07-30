@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Configuration;
-using DocumentIntelligence.Contracts.Contracts;
+using DocumentIntelligence.Contracts;
 using DocumentIntelligence.Messaging;
 
 namespace AnalysisService.Worker.Messaging

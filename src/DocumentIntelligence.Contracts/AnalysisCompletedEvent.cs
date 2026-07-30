@@ -1,4 +1,4 @@
-namespace DocumentIntelligence.Contracts.Contracts;
+namespace DocumentIntelligence.Contracts;
 
 // An outcome, not a lifecycle state: this says *what happened* in the analysis
 // service. Mapping the outcome onto a document status is the API's own decision,

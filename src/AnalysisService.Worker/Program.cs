@@ -4,7 +4,7 @@ using AnalysisService.Worker.Messaging;
 using AnalysisService.Worker.Infrastructure;
 using Azure.Messaging.ServiceBus; 
 using DocumentIntelligence.Messaging;
-using DocumentIntelligence.Contracts.Contracts;
+using DocumentIntelligence.Contracts;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 

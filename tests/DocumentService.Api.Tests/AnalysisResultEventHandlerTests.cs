@@ -1,4 +1,4 @@
-using DocumentIntelligence.Contracts.Contracts;
+using DocumentIntelligence.Contracts;
 using DocumentService.Api.Domain;
 using DocumentService.Api.Infrastructure.Repositories;
 using DocumentService.Api.Features.Documents.RecordAnalysisResult;

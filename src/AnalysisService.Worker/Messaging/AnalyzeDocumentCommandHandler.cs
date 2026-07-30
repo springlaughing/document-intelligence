@@ -1,5 +1,5 @@
 using AnalysisService.Worker.Infrastructure;
-using DocumentIntelligence.Contracts.Contracts;
+using DocumentIntelligence.Contracts;
 using DocumentIntelligence.Messaging;
 using Microsoft.Extensions.Logging;
 
