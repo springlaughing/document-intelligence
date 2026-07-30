@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using DocumentIntelligence.Contracts.Messaging;
 using Azure.Messaging.ServiceBus;
@@ -9,7 +10,9 @@ public class AzureServiceBusPublisher : IMessagePublisher, IAsyncDisposable
 {
     private readonly ServiceBusClient _client;
     private readonly JsonSerializerOptions _jsonOpt;
-    private readonly Dictionary<string, ServiceBusSender> _senders = new();
+    // Registered as a singleton and shared across concurrent requests,
+    // so the sender cache must be thread-safe.
+    private readonly ConcurrentDictionary<string, ServiceBusSender> _senders = new();
 
 
     public AzureServiceBusPublisher(ServiceBusClient client, JsonSerializerOptions jsonOpt)
@@ -20,11 +23,7 @@ public class AzureServiceBusPublisher : IMessagePublisher, IAsyncDisposable
 
     public async Task PublishAsync<T>(string entityName, T message, CancellationToken ct = default)
     {
-        if (!_senders.TryGetValue(entityName, out var sender))
-        {
-            sender = _client.CreateSender(entityName);
-            _senders[entityName] = sender;
-        }
+        var sender = _senders.GetOrAdd(entityName, static (name, client) => client.CreateSender(name), _client);
 
         var payload = JsonSerializer.Serialize(message, _jsonOpt);
         var busMessage = new ServiceBusMessage(payload)

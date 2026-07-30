@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Azure.Messaging.ServiceBus; 
 using Microsoft.OpenApi.Models;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -40,7 +41,12 @@ else
 
 
 
-builder.Services.AddSingleton(sp => new JsonSerializerOptions(JsonSerializerDefaults.Web));
+// Enums go on the wire as names, not ordinals: adding an enum value must not
+// silently change the meaning of in-flight or dead-lettered messages.
+builder.Services.AddSingleton(sp => new JsonSerializerOptions(JsonSerializerDefaults.Web)
+{
+    Converters = { new JsonStringEnumConverter() }
+});
 if (!builder.Environment.IsDevelopment())
 {
     var aiConnStr =
@@ -126,6 +132,8 @@ builder.Services.AddSingleton<IMessagePublisher, AzureServiceBusPublisher>();
 builder.Services.AddScoped<IAnalyzeDocumentCommandPublisher, AnalyzeDocumentCommandPublisher>();
 builder.Services.AddScoped<IMessageHandler<AnalysisCompletedEvent>, AnalysisCompletedEventHandler>();
 builder.Services.AddHostedService<AnalysisCompletedEventListener>();
+builder.Services.AddScoped<IMessageHandler<AnalysisFailedEvent>, AnalysisFailedEventHandler>();
+builder.Services.AddHostedService<AnalysisFailedEventListener>();
 
 
 builder.Services.AddEndpointsApiExplorer();

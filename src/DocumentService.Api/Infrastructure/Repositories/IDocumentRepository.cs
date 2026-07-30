@@ -11,7 +11,9 @@ public interface IDocumentRepository
     Task<bool> SetStatusAsync(Guid documentId, DocumentStatus status, CancellationToken ct = default);
 
     Task<DocumentRecord?> GetAsync(Guid documentId, CancellationToken ct = default);
-    Task UpdateAnalysisResultAsync(Guid documentId, string summary, string blobReference, DocumentStatus status = DocumentStatus.Analyzed, CancellationToken ct = default);
+    // Status is passed explicitly: mapping an analysis outcome onto a lifecycle state
+    // is a decision for the caller, not a storage default.
+    Task UpdateAnalysisResultAsync(Guid documentId, string summary, string blobReference, DocumentStatus status, CancellationToken ct = default);
 
 }
 

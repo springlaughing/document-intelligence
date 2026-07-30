@@ -6,6 +6,7 @@ using Azure.Messaging.ServiceBus;
 using DocumentIntelligence.Contracts.Messaging;
 using DocumentIntelligence.Contracts.Contracts;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 
 
@@ -28,7 +29,12 @@ if (!builder.Environment.IsDevelopment())
     }
    
 }
-builder.Services.AddSingleton(sp => new JsonSerializerOptions(JsonSerializerDefaults.Web));
+// Enums go on the wire as names, not ordinals: adding an enum value must not
+// silently change the meaning of in-flight or dead-lettered messages.
+builder.Services.AddSingleton(sp => new JsonSerializerOptions(JsonSerializerDefaults.Web)
+{
+    Converters = { new JsonStringEnumConverter() }
+});
 
 builder.Services.AddSingleton(sp =>
 {
@@ -72,10 +78,8 @@ builder.Services.AddScoped<IAnalysisResultEventPublisher, AnalysisResultEventPub
 builder.Services.AddHostedService<AnalyzeDocumentCommandListener>();
 builder.Services.AddScoped<IMessageHandler<AnalyzeDocumentCommand>, AnalyzeDocumentCommandHandler>();
 
-builder.Services.AddScoped<IBlobWriter, BlobWriter>();
-
-
-builder.Services.AddSingleton<IBlobWriter, BlobWriter>(); 
+// BlobWriter is stateless -> singleton.
+builder.Services.AddSingleton<IBlobWriter, BlobWriter>();
 
 
 

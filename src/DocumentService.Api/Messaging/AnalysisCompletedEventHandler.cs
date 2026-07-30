@@ -1,4 +1,5 @@
 using DocumentIntelligence.Contracts.Contracts;
+using DocumentIntelligence.Contracts.DomainContracts;
 using DocumentIntelligence.Contracts.Messaging;
 using DocumentService.Api.Infrastructure.Repositories;
 
@@ -26,12 +27,13 @@ public class AnalysisCompletedEventHandler : IMessageHandler<AnalysisCompletedEv
 
         _logger.LogInformation("Applying AnalysisCompletedEvent for {DocumentId}", evt.DocumentId);
 
-
+        // The event reports an outcome; this service owns the lifecycle and decides
+        // which status that outcome maps to.
         await _repo.UpdateAnalysisResultAsync(
             documentId: evt.DocumentId,
             summary: evt.Summary,
             blobReference: evt.BlobReference,
-            status: evt.Status,
+            status: DocumentStatus.Analyzed,
             ct: ct
         );
 

@@ -1,6 +1,5 @@
 using AnalysisService.Worker.Infrastructure;
 using DocumentIntelligence.Contracts.Contracts;
-using DocumentIntelligence.Contracts.DomainContracts;
 using DocumentIntelligence.Contracts.Messaging;
 using Microsoft.Extensions.Logging;
 
@@ -28,13 +27,35 @@ public sealed class AnalyzeDocumentCommandHandler : IMessageHandler<AnalyzeDocum
 
         _logger.LogInformation("Handling AnalyzeDocumentCommand for {DocumentId}", cmd.DocumentId);
 
-        // demo analysis
-        var extractedEntities = new[] { "InvoiceNo:12345", "Amount:99.99" };
-        var summary = $"Auto summary for {cmd.FileName}";
+        AnalysisCompletedEvent evt;
+        try
+        {
+            // demo analysis
+            var extractedEntities = new[] { "InvoiceNo:12345", "Amount:99.99" };
+            var summary = $"Auto summary for {cmd.FileName}";
 
-        var blobRef = await _blobWriter.SaveAsync(cmd.DocumentId, extractedEntities, ct);
+            var blobRef = await _blobWriter.SaveAsync(cmd.DocumentId, extractedEntities, ct);
 
-        var evt = new AnalysisCompletedEvent(cmd.DocumentId, summary, DocumentStatus.Analyzed, blobRef);
+            evt = new AnalysisCompletedEvent(cmd.DocumentId, summary, blobRef);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Shutting down - not an analysis failure. Let the message be redelivered.
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // The outcome is a failure, and a failure is still a result: report it so the
+            // document leaves its "analyzing" state. Analysis is terminal here - retrying
+            // is the caller's decision, made by triggering analysis again.
+            _logger.LogError(ex, "Analysis failed for {DocumentId}", cmd.DocumentId);
+
+            await _resultPublisher.PublishAsync(
+                new AnalysisFailedEvent(cmd.DocumentId, ex.Message), ct);
+
+            return;
+        }
+
         await _resultPublisher.PublishAsync(evt, ct);
     }
 }

@@ -7,4 +7,6 @@ namespace AnalysisService.Worker.Messaging;
 public interface IAnalysisResultEventPublisher
 {
     Task PublishAsync(AnalysisCompletedEvent evt, CancellationToken ct);
+
+    Task PublishAsync(AnalysisFailedEvent evt, CancellationToken ct);
 }

@@ -77,7 +77,7 @@ public class EfDocumentRepository : IDocumentRepository
         Guid documentId,
         string summary,
         string blobReference,
-        DocumentStatus status = DocumentStatus.Analyzed,
+        DocumentStatus status,
         CancellationToken ct = default)
         {
             var entity = await _db.Documents.FirstOrDefaultAsync(d => d.Id == documentId, ct);
