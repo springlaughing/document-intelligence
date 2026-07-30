@@ -2,9 +2,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using DocumentIntelligence.Contracts.Contracts;
 using DocumentService.Api.Domain;
-using DocumentService.Api.Controllers;
+using DocumentService.Api.Features.Documents;
+using DocumentService.Api.Features.Documents.RequestAnalysis;
 using DocumentService.Api.Infrastructure.Repositories;
-using DocumentService.Api.Messaging;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -13,14 +13,14 @@ using Microsoft.AspNetCore.Http;
 
 
 
-public class DocumentsController_AnalyzeTests
+public class RequestAnalysisControllerTests
 {
     [Fact]
 public async Task Analyze_publishes_command_with_correct_payload()
 {
     var repo = new Mock<IDocumentRepository>();
     var publisher = new Mock<IAnalyzeDocumentCommandPublisher>();
-    var logger = Mock.Of<ILogger<DocumentsController>>();
+    var logger = Mock.Of<ILogger<RequestAnalysisController>>();
 
     var docId = Guid.NewGuid();
 
@@ -35,7 +35,7 @@ public async Task Analyze_publishes_command_with_correct_payload()
     repo.Setup(r => r.SetStatusAsync(docId, DocumentStatus.Analyzing, It.IsAny<CancellationToken>()))
         .ReturnsAsync(true);
 
-    var sut = new DocumentsController(repo.Object, publisher.Object, logger);
+    var sut = new RequestAnalysisController(repo.Object, publisher.Object, logger);
 
     // ⬇️ Provide HttpContext and a user so ControllerBase.User is safe
     var httpContext = new DefaultHttpContext
@@ -47,8 +47,8 @@ public async Task Analyze_publishes_command_with_correct_payload()
 
     var result = await sut.AnalyzeDocument(docId, CancellationToken.None);
 
-    var accepted = Assert.IsType<AcceptedAtActionResult>(result);
-    Assert.Equal(nameof(DocumentsController.GetDocument), accepted.ActionName);
+    var accepted = Assert.IsType<AcceptedAtRouteResult>(result);
+    Assert.Equal(DocumentRoutes.GetDocumentById, accepted.RouteName);
 
     publisher.Verify(p => p.PublishAsync(
         It.Is<AnalyzeDocumentCommand>(c => c.DocumentId == docId && c.FileName == "invoice0.pdf"),

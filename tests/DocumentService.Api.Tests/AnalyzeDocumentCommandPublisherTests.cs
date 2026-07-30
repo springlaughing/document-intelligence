@@ -2,7 +2,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using DocumentIntelligence.Contracts.Contracts;
 using DocumentIntelligence.Messaging;
-using DocumentService.Api.Messaging;
+using DocumentService.Api.Features.Documents.RequestAnalysis;
 using Microsoft.Extensions.Configuration;
 using Moq;
 using Xunit;

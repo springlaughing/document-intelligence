@@ -2,7 +2,7 @@ using Microsoft.Extensions.Configuration;
 using DocumentIntelligence.Contracts.Contracts;
 using DocumentIntelligence.Messaging;
 
-namespace DocumentService.Api.Messaging
+namespace DocumentService.Api.Features.Documents.RequestAnalysis
 {
     public class AnalyzeDocumentCommandPublisher : IAnalyzeDocumentCommandPublisher
     {

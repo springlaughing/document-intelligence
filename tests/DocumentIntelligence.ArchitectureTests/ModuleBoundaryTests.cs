@@ -2,7 +2,7 @@ using System.Reflection;
 using AnalysisService.Worker.Messaging;
 using DocumentIntelligence.Contracts.Contracts;
 using DocumentIntelligence.Messaging;
-using DocumentService.Api.Controllers;
+using DocumentService.Api.Features.Documents.GetDocument;
 using NetArchTest.Rules;
 
 namespace DocumentIntelligence.ArchitectureTests;
@@ -14,7 +14,7 @@ public class ModuleBoundaryTests
 {
     private static readonly Assembly ContractsAssembly = typeof(AnalyzeDocumentCommand).Assembly;
     private static readonly Assembly MessagingAssembly = typeof(IMessagePublisher).Assembly;
-    private static readonly Assembly ApiAssembly = typeof(DocumentsController).Assembly;
+    private static readonly Assembly ApiAssembly = typeof(GetDocumentController).Assembly;
     private static readonly Assembly WorkerAssembly = typeof(AnalyzeDocumentCommandHandler).Assembly;
 
     private static readonly string[] ProjectAssemblyNames =

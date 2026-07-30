@@ -1,9 +1,9 @@
 using DocumentIntelligence.Contracts.Contracts;
-using DocumentService.Api.Domain;
 using DocumentIntelligence.Messaging;
+using DocumentService.Api.Domain;
 using DocumentService.Api.Infrastructure.Repositories;
 
-namespace DocumentService.Api.Messaging;
+namespace DocumentService.Api.Features.Documents.RecordAnalysisResult;
 
 public class AnalysisFailedEventHandler : IMessageHandler<AnalysisFailedEvent>
 {

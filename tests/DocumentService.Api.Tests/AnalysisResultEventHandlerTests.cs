@@ -1,7 +1,7 @@
 using DocumentIntelligence.Contracts.Contracts;
 using DocumentService.Api.Domain;
 using DocumentService.Api.Infrastructure.Repositories;
-using DocumentService.Api.Messaging;
+using DocumentService.Api.Features.Documents.RecordAnalysisResult;
 using Microsoft.Extensions.Logging;
 using Moq;
 

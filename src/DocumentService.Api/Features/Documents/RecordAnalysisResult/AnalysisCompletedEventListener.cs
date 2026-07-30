@@ -5,23 +5,23 @@ using DocumentIntelligence.Messaging;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace DocumentService.Api.Messaging;
+namespace DocumentService.Api.Features.Documents.RecordAnalysisResult;
 
-public sealed class AnalysisFailedEventListener : BackgroundService
+public sealed class AnalysisCompletedEventListener : BackgroundService
 {
-    private readonly ServiceBusMessageProcessor<AnalysisFailedEvent> _processor;
+    private readonly ServiceBusMessageProcessor<AnalysisCompletedEvent> _processor;
 
-    public AnalysisFailedEventListener(
+    public AnalysisCompletedEventListener(
         IConfiguration config,
         ServiceBusClient client,
-        ILogger<ServiceBusMessageProcessor<AnalysisFailedEvent>> logger,
+        ILogger<ServiceBusMessageProcessor<AnalysisCompletedEvent>> logger,
         IServiceScopeFactory scopeFactory,
         JsonSerializerOptions jsonOpt)
     {
-        var topic = config["AzureServiceBus:AnalysisFailedTopic"] ?? "analysis-failed";
-        var subscription = config["AzureServiceBus:AnalysisFailedSubscription"] ?? "document-api";
+        var topic = config["AzureServiceBus:AnalysisCompletedTopic"] ?? "analysis-completed";
+        var subscription = config["AzureServiceBus:AnalysisCompletedSubscription"] ?? "document-api";
 
-        _processor = new ServiceBusMessageProcessor<AnalysisFailedEvent>(
+        _processor = new ServiceBusMessageProcessor<AnalysisCompletedEvent>(
             client,
             scopeFactory,
             logger,
@@ -29,6 +29,7 @@ public sealed class AnalysisFailedEventListener : BackgroundService
             subscriptionName: subscription,
             options: null,
             jsonOpt: jsonOpt);
+
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken) => _processor.StartAsync(stoppingToken);

@@ -1,9 +1,8 @@
 using System.Threading;
 using System.Threading.Tasks;
-using DocumentIntelligence.Contracts.Contracts; 
+using DocumentIntelligence.Contracts.Contracts;
 
-
-namespace DocumentService.Api.Messaging
+namespace DocumentService.Api.Features.Documents.RequestAnalysis
 {
     public interface IAnalyzeDocumentCommandPublisher
     {

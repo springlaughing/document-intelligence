@@ -1,5 +1,4 @@
-
-namespace DocumentService.Api.Dtos;
+namespace DocumentService.Api.Features.Documents.GetDocument;
 
 public record GetDocumentDto(
     Guid DocumentId,

@@ -1,4 +1,4 @@
-namespace DocumentService.Api.Dtos;
+namespace DocumentService.Api.Features.Documents.RegisterDocument;
 
 public record UploadDocumentDto(
     Guid DocumentId,
