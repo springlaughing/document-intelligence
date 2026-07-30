@@ -1,5 +1,5 @@
 using System;
-using DocumentIntelligence.Contracts.DomainContracts;
+using DocumentService.Api.Domain;
 
 namespace DocumentService.Api.Infrastructure.Ef.Entities;
 

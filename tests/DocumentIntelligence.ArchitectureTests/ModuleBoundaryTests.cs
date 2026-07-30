@@ -76,6 +76,22 @@ public class ModuleBoundaryTests
     }
 
     [Fact]
+    public void Api_domain_depends_on_no_infrastructure()
+    {
+        // The lifecycle rules must stay plain C#: no persistence, no web stack, no cloud
+        // SDK, and no wire contracts either. This is the rule that has to hold as real
+        // domain logic moves in alongside DocumentStatus.
+        var result = Types.InAssembly(ApiAssembly)
+            .That()
+            .ResideInNamespace("DocumentService.Api.Domain")
+            .ShouldNot()
+            .HaveDependencyOnAny(ForbiddenInContracts.Append("DocumentIntelligence").ToArray())
+            .GetResult();
+
+        Assert.True(result.IsSuccessful, Describe(result));
+    }
+
+    [Fact]
     public void Only_api_infrastructure_touches_ef_core()
     {
         // Persistence stays behind the repository. Program.cs is deliberately exempt: the

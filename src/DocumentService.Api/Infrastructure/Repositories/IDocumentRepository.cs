@@ -1,4 +1,4 @@
-using DocumentIntelligence.Contracts.DomainContracts;
+using DocumentService.Api.Domain;
 
 namespace DocumentService.Api.Infrastructure.Repositories;
 

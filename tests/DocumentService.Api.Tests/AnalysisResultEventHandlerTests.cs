@@ -1,5 +1,5 @@
 using DocumentIntelligence.Contracts.Contracts;
-using DocumentIntelligence.Contracts.DomainContracts;
+using DocumentService.Api.Domain;
 using DocumentService.Api.Infrastructure.Repositories;
 using DocumentService.Api.Messaging;
 using Microsoft.Extensions.Logging;

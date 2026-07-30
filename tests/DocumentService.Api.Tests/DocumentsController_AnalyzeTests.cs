@@ -1,7 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using DocumentIntelligence.Contracts.Contracts;
-using DocumentIntelligence.Contracts.DomainContracts;
+using DocumentService.Api.Domain;
 using DocumentService.Api.Controllers;
 using DocumentService.Api.Infrastructure.Repositories;
 using DocumentService.Api.Messaging;

@@ -3,7 +3,7 @@ using OpenTelemetry.Resources;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
 using DocumentIntelligence.Messaging;
-using DocumentIntelligence.Contracts.DomainContracts;
+using DocumentService.Api.Domain;
 using DocumentIntelligence.Contracts.Contracts;
 using DocumentService.Api.Messaging;
 using DocumentService.Api.Infrastructure.Repositories;

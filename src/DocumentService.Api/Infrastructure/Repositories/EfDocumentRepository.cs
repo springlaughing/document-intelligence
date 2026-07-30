@@ -1,5 +1,5 @@
 
-using DocumentIntelligence.Contracts.DomainContracts;
+using DocumentService.Api.Domain;
 using DocumentService.Api.Infrastructure.Ef;
 using Microsoft.EntityFrameworkCore;
 using DocumentService.Api.Infrastructure.Ef.Entities;
