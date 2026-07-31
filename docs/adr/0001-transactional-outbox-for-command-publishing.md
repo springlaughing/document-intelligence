@@ -26,7 +26,7 @@ is slow, doesn't scale, and turns one stalled process into two stalled systems.
 ## Decision
 
 Write the message into the database, in the same transaction as the state change that
-justifies it, and let a background relay publish it afterwards.
+justifies it, and let a background poller publish it afterwards.
 
 This removes the second transactional resource rather than trying to coordinate it. There
 is now exactly one commit at request time; publishing is a separate concern that can fail
@@ -35,22 +35,22 @@ and be retried without any state being lost.
 - `OutboxMessages` table, written by `TryStartAnalysisAsync` in the same `SaveChanges` as
   the status change
 - `OutboxDrainer` performs one pass — publish pending, record what succeeded
-- `OutboxRelay` (a `BackgroundService`) schedules those passes
+- `OutboxPoller` (a `BackgroundService`) schedules those passes
 
 ## Consequences
 
-**Publishing becomes at-least-once.** The relay can publish successfully and then fail
+**Publishing becomes at-least-once.** The poller can publish successfully and then fail
 before writing `SentAtUtc`, so it publishes again on the next pass. Sending and recording
 the send are themselves two systems — the outbox contains that problem, it does not
 abolish it. Consumers must be idempotent. The API's consumers already are (`ProcessedMessages`
 inbox); **the worker's command consumer is not**, which is now a real gap rather than a
-theoretical one.
+theoretical one. *(Closed later the same day by [0003](0003-deterministic-event-ids-instead-of-a-worker-inbox.md).)*
 
 **Publishing is no longer synchronous with the request.** A caller receiving `202 Accepted`
 knows the command is durably queued, not that it has reached the broker. Worst case the
 command is delayed by one poll interval (default 5s).
 
-**A stalled relay is a silent failure.** If the relay dies, documents accumulate in
+**A stalled poller is a silent failure.** If the poller dies, documents accumulate in
 `Analyzing` and nothing publishes. The loop deliberately never exits on error, but that is
 not monitoring — pending-message age is the metric that would need alerting in a real
 deployment.
@@ -59,17 +59,17 @@ deployment.
 not block later ones, so a persistent failure reorders relative to its successors. The
 pipeline has no ordering requirement today.
 
-**The outbox table grows.** Sent rows are never removed. Needs a sweep, same as the inbox.
+**The outbox table grows.** Sent rows are never removed. Needs periodic cleanup, same as the inbox.
 
 ## Alternatives considered
 
 **Publish first, then commit.** Turns a lost command into a command for a document in the
 wrong state — trading a stuck document for a phantom one. Not better.
 
-**Reconciliation sweep instead of an outbox.** A job that finds documents stuck in
+**A reconciliation pass instead of an outbox.** A job that finds documents stuck in
 `Analyzing` and republishes. Cheaper, and it catches *every* cause of stuckness rather
 than this one. It remains worth adding as a backstop — the outbox fixes a specific cause,
-a sweep fixes the symptom regardless of cause. Not chosen as the primary mechanism because
+a reconciliation pass fixes the symptom regardless of cause. Not chosen as the primary mechanism because
 it is detection-and-repair rather than prevention.
 
 **Adopt MassTransit or NServiceBus.** Both ship a transactional outbox and inbox that hook

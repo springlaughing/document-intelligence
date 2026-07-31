@@ -69,7 +69,7 @@ public class RequestAnalysisController : ControllerBase
         // One call, one transaction: the document moves to Analyzing and the command is
         // queued together. Previously these were two writes to two systems, so dying in
         // between left the document Analyzing with no command ever sent, and nothing to
-        // notice. The relay publishes from the outbox.
+        // notice. The outbox poller publishes from the outbox.
         var started = await _repo.TryStartAnalysisAsync(
             documentId, DocumentStatus.Analyzing, _queue.Prepare(command), ct);
 

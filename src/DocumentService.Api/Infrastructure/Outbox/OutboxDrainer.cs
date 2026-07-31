@@ -7,8 +7,8 @@ namespace DocumentService.Api.Infrastructure.Outbox;
 
 // One pass over the outbox: publish what is pending, record what succeeded.
 //
-// Separate from OutboxRelay so that "what a pass does" can be tested without starting a
-// background service and waiting on a timer. The relay owns scheduling; this owns work.
+// Separate from OutboxPoller so that "what a pass does" can be tested without starting a
+// background service and waiting on a timer. The poller owns scheduling; this owns work.
 public class OutboxDrainer
 {
     private readonly DocumentApiDbContext _db;
@@ -53,7 +53,7 @@ public class OutboxDrainer
 
             try
             {
-                // The outbox row id doubles as the broker MessageId. If this relay
+                // The outbox row id doubles as the broker MessageId. If this
                 // publishes and then dies before recording the send, the retry carries
                 // the same id - so an entity with duplicate detection turned on discards
                 // it. Belt to the inbox's braces.

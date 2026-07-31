@@ -10,7 +10,7 @@ public interface IMessagePublisher
     //
     // messageId, when supplied, becomes the broker's MessageId. On an entity with
     // duplicate detection enabled that lets the broker reject a resend, which is worth
-    // doing precisely because an outbox relay can publish and then fail before recording
+    // doing precisely because an outbox poller can publish and then fail before recording
     // that it published.
     Task PublishRawAsync(
         string entityName, string payload, string subject, string? messageId, CancellationToken ct = default);

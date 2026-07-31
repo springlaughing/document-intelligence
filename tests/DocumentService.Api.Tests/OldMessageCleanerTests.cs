@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
 
-public class MessageRetentionSweeperTests
+public class OldMessageCleanerTests
 {
     private static readonly TimeSpan Retention = TimeSpan.FromDays(7);
 
@@ -14,8 +14,8 @@ public class MessageRetentionSweeperTests
             .UseInMemoryDatabase(name)
             .Options);
 
-    private static MessageRetentionSweeper NewSweeper(DocumentApiDbContext db) =>
-        new(db, Mock.Of<ILogger<MessageRetentionSweeper>>());
+    private static OldMessageCleaner NewCleaner(DocumentApiDbContext db) =>
+        new(db, Mock.Of<ILogger<OldMessageCleaner>>());
 
     [Fact]
     public async Task Old_inbox_rows_are_removed_and_recent_ones_kept()
@@ -35,7 +35,7 @@ public class MessageRetentionSweeperTests
             });
         await seed.SaveChangesAsync();
 
-        var removed = await NewSweeper(NewDb(dbName)).SweepAsync(Retention);
+        var removed = await NewCleaner(NewDb(dbName)).CleanAsync(Retention);
 
         Assert.Equal(1, removed);
         Assert.Equal(1, await NewDb(dbName).ProcessedMessages.CountAsync());
@@ -59,7 +59,7 @@ public class MessageRetentionSweeperTests
         });
         await seed.SaveChangesAsync();
 
-        var removed = await NewSweeper(NewDb(dbName)).SweepAsync(Retention);
+        var removed = await NewCleaner(NewDb(dbName)).CleanAsync(Retention);
 
         Assert.Equal(0, removed);
         Assert.Equal(1, await NewDb(dbName).OutboxMessages.CountAsync());
@@ -85,15 +85,15 @@ public class MessageRetentionSweeperTests
             });
         await seed.SaveChangesAsync();
 
-        var removed = await NewSweeper(NewDb(dbName)).SweepAsync(Retention);
+        var removed = await NewCleaner(NewDb(dbName)).CleanAsync(Retention);
 
         Assert.Equal(1, removed);
         Assert.Equal(1, await NewDb(dbName).OutboxMessages.CountAsync());
     }
 
     [Fact]
-    public async Task An_empty_sweep_does_nothing()
+    public async Task An_empty_run_does_nothing()
     {
-        Assert.Equal(0, await NewSweeper(NewDb(Guid.NewGuid().ToString())).SweepAsync(Retention));
+        Assert.Equal(0, await NewCleaner(NewDb(Guid.NewGuid().ToString())).CleanAsync(Retention));
     }
 }

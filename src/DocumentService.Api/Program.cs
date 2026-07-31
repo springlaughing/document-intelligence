@@ -82,7 +82,7 @@ telemetry.WithTracing(tracing =>
     // across the wire hop - the hop Go-to-Definition cannot follow.
     tracing.AddSource("Azure.*");
 
-    // Spans this service raises itself, currently the outbox relay restoring the trace
+    // Spans this service raises itself, currently the outbox poller restoring the trace
     // of the request that queued a message.
     tracing.AddSource(OutboxTelemetry.ActivitySourceName);
 
@@ -178,11 +178,11 @@ builder.Services.AddScoped<IAnalyzeDocumentCommandQueue, AnalyzeDocumentCommandQ
 // Nothing publishes the analyze command inline any more; it is written to the outbox
 // inside the same transaction as the status change, and this drains it.
 builder.Services.AddScoped<OutboxDrainer>();
-builder.Services.AddHostedService<OutboxRelay>();
+builder.Services.AddHostedService<OutboxPoller>();
 
 // Both the inbox and the outbox are append-only; without this they grow forever.
-builder.Services.AddScoped<MessageRetentionSweeper>();
-builder.Services.AddHostedService<MessageRetentionService>();
+builder.Services.AddScoped<OldMessageCleaner>();
+builder.Services.AddHostedService<CleanupScheduler>();
 builder.Services.AddScoped<IMessageHandler<AnalysisCompletedEvent>, AnalysisCompletedEventHandler>();
 builder.Services.AddHostedService<AnalysisCompletedEventListener>();
 builder.Services.AddScoped<IMessageHandler<AnalysisFailedEvent>, AnalysisFailedEventHandler>();

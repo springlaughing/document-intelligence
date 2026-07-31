@@ -7,7 +7,7 @@ namespace DocumentService.Api.Features.Documents.RequestAnalysis;
 //
 // It deliberately does not publish: the command has to be written in the same
 // transaction as the status change that justifies it, and only the repository owns that
-// transaction. Publishing happens later, from the relay.
+// transaction. Publishing happens later, from the outbox poller.
 public interface IAnalyzeDocumentCommandQueue
 {
     OutboxEnqueue Prepare(AnalyzeDocumentCommand cmd);

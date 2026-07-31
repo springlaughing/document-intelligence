@@ -10,19 +10,19 @@ namespace DocumentService.Api.Infrastructure.Outbox;
 // broker's DefaultMessageTimeToLive it can never be redelivered, so the inbox row that
 // would have recognised it is dead weight. The retention window must stay comfortably
 // longer than that TTL, or the guard is removed while duplicates are still possible.
-public class MessageRetentionSweeper
+public class OldMessageCleaner
 {
     private readonly DocumentApiDbContext _db;
-    private readonly ILogger<MessageRetentionSweeper> _logger;
+    private readonly ILogger<OldMessageCleaner> _logger;
 
-    public MessageRetentionSweeper(DocumentApiDbContext db, ILogger<MessageRetentionSweeper> logger)
+    public OldMessageCleaner(DocumentApiDbContext db, ILogger<OldMessageCleaner> logger)
     {
         _db = db;
         _logger = logger;
     }
 
     /// Returns how many rows were removed.
-    public async Task<int> SweepAsync(TimeSpan retention, CancellationToken ct = default)
+    public async Task<int> CleanAsync(TimeSpan retention, CancellationToken ct = default)
     {
         var cutoff = DateTimeOffset.UtcNow - retention;
 

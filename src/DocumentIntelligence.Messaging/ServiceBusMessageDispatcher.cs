@@ -4,17 +4,17 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace DocumentIntelligence.Messaging;
-public sealed class ServiceBusMessageProcessor<T> : IAsyncDisposable
+public sealed class ServiceBusMessageDispatcher<T> : IAsyncDisposable
 {
     private readonly ServiceBusProcessor _processor;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger _logger;
     private readonly JsonSerializerOptions _jsonOpt;
 
-    public ServiceBusMessageProcessor(
+    public ServiceBusMessageDispatcher(
         ServiceBusClient client,
         IServiceScopeFactory scopeFactory,
-        ILogger<ServiceBusMessageProcessor<T>> logger,
+        ILogger<ServiceBusMessageDispatcher<T>> logger,
         string entityName,
         string? subscriptionName,
         ServiceBusProcessorOptions? options = null,

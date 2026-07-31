@@ -94,7 +94,7 @@ because it would drag an outbox in behind it and cost the statelessness that jus
 separate deployment.
 
 **Service Bus duplicate detection.** Already enabled on the `analyze-document` queue and it
-closes a real gap — the outbox relay republishing the same message. But it dedupes *sends*,
+closes a real gap — the outbox poller republishing the same message. But it dedupes *sends*,
 not *deliveries*: a message redelivered after a lock expiry is the same send, so the broker
 has no reason to suppress it. A complement, not a substitute.
 
@@ -106,5 +106,5 @@ so handlers need not know they are handling messages.
 
 If a command exhausts `MaxDeliveryCount` and dead-letters, no event is ever published and
 the document remains `Analyzing` with nothing detecting it. Neither guard here addresses
-that. A reconciliation sweep over documents stuck in `Analyzing` would — and would also
+that. A reconciliation pass over documents stuck in `Analyzing` would — and would also
 catch failure modes not enumerated anywhere, which is its real value.

@@ -4,18 +4,18 @@ namespace DocumentService.Api.Infrastructure.Outbox;
 // published, sends them, and records that it did.
 //
 // Scheduling only - the work itself lives in OutboxDrainer.
-public sealed class OutboxRelay : BackgroundService
+public sealed class OutboxPoller : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<OutboxRelay> _logger;
+    private readonly ILogger<OutboxPoller> _logger;
 
     private readonly TimeSpan _pollInterval;
     private readonly int _batchSize;
 
-    public OutboxRelay(
+    public OutboxPoller(
         IServiceScopeFactory scopeFactory,
         IConfiguration config,
-        ILogger<OutboxRelay> logger)
+        ILogger<OutboxPoller> logger)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
@@ -26,7 +26,7 @@ public sealed class OutboxRelay : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Outbox relay started; polling every {Interval}.", _pollInterval);
+        _logger.LogInformation("Outbox poller started; checking every {Interval}.", _pollInterval);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -48,15 +48,15 @@ public sealed class OutboxRelay : BackgroundService
             }
             catch (Exception ex)
             {
-                // Never let the loop die. A stalled relay is a silently stalled system:
+                // Never let the loop die. A stalled poller is a silently stalled system:
                 // documents sit in Analyzing and no command is ever sent.
-                _logger.LogError(ex, "Outbox relay pass failed; retrying after {Interval}.", _pollInterval);
+                _logger.LogError(ex, "Outbox pass failed; retrying after {Interval}.", _pollInterval);
 
                 try { await Task.Delay(_pollInterval, stoppingToken); }
                 catch (OperationCanceledException) { break; }
             }
         }
 
-        _logger.LogInformation("Outbox relay stopped.");
+        _logger.LogInformation("Outbox poller stopped.");
     }
 }

@@ -1,23 +1,23 @@
 namespace DocumentService.Api.Infrastructure.Outbox;
 
-// Runs MessageRetentionSweeper on a long interval. Scheduling only.
-public sealed class MessageRetentionService : BackgroundService
+// Runs OldMessageCleaner on a long interval. Scheduling only.
+public sealed class CleanupScheduler : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<MessageRetentionService> _logger;
+    private readonly ILogger<CleanupScheduler> _logger;
 
     private readonly TimeSpan _interval;
     private readonly TimeSpan _retention;
 
-    public MessageRetentionService(
+    public CleanupScheduler(
         IServiceScopeFactory scopeFactory,
         IConfiguration config,
-        ILogger<MessageRetentionService> logger)
+        ILogger<CleanupScheduler> logger)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
 
-        _interval = TimeSpan.FromHours(config.GetValue("Messaging:SweepIntervalHours", 6));
+        _interval = TimeSpan.FromHours(config.GetValue("Messaging:CleanupIntervalHours", 6));
 
         // Default is days against a message TTL of one hour, so the guard long outlives
         // any message that could still arrive.
@@ -27,16 +27,16 @@ public sealed class MessageRetentionService : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation(
-            "Message retention sweep every {Interval}, keeping {Retention}.", _interval, _retention);
+            "Old message cleanup every {Interval}, keeping {Retention}.", _interval, _retention);
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 using var scope = _scopeFactory.CreateScope();
-                var sweeper = scope.ServiceProvider.GetRequiredService<MessageRetentionSweeper>();
+                var cleaner = scope.ServiceProvider.GetRequiredService<OldMessageCleaner>();
 
-                await sweeper.SweepAsync(_retention, stoppingToken);
+                await cleaner.CleanAsync(_retention, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -45,7 +45,7 @@ public sealed class MessageRetentionService : BackgroundService
             catch (Exception ex)
             {
                 // Housekeeping failing is not worth taking anything else down for.
-                _logger.LogError(ex, "Message retention sweep failed; will retry next cycle.");
+                _logger.LogError(ex, "Old message cleanup failed; will retry next cycle.");
             }
 
             try { await Task.Delay(_interval, stoppingToken); }
