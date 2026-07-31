@@ -79,13 +79,84 @@ public class EfDocumentRepositoryTests
         var id = Guid.NewGuid();
         await repo.CreateIfNotExistsAsync(id, "invoice.pdf");
 
-        await repo.UpdateAnalysisResultAsync(
-            id, "a summary", "blob://ref.json", DocumentStatus.Analyzed);
+        var applied = await repo.TryApplyAnalysisResultAsync(
+            Guid.NewGuid(), id, "a summary", "blob://ref.json", DocumentStatus.Analyzed);
+
+        Assert.True(applied);
 
         var record = await repo.GetAsync(id);
 
         Assert.Equal("a summary", record!.AnalysisSummary);
         Assert.Equal("blob://ref.json", record.AnalysisBlobRef);
         Assert.Equal(DocumentStatus.Analyzed, record.Status);
+    }
+
+    [Fact]
+    public async Task Redelivering_the_same_event_changes_nothing()
+    {
+        // The at-least-once case: the broker hands us the same event twice.
+        var repo = NewRepository(out _);
+        var id = Guid.NewGuid();
+        var eventId = Guid.NewGuid();
+        await repo.CreateIfNotExistsAsync(id, "invoice.pdf");
+
+        var first = await repo.TryApplyAnalysisResultAsync(
+            eventId, id, "first result", "blob://first.json", DocumentStatus.Analyzed);
+
+        var second = await repo.TryApplyAnalysisResultAsync(
+            eventId, id, "SECOND result", "blob://second.json", DocumentStatus.Analyzed);
+
+        Assert.True(first);
+        Assert.False(second);
+
+        var record = await repo.GetAsync(id);
+        Assert.Equal("first result", record!.AnalysisSummary);      // untouched
+        Assert.Equal("blob://first.json", record.AnalysisBlobRef);
+    }
+
+    [Fact]
+    public async Task A_different_event_for_the_same_document_still_applies()
+    {
+        // Guarding on EventId must not block a genuine re-analysis.
+        var repo = NewRepository(out _);
+        var id = Guid.NewGuid();
+        await repo.CreateIfNotExistsAsync(id, "invoice.pdf");
+
+        await repo.TryApplyAnalysisResultAsync(
+            Guid.NewGuid(), id, "first pass", "blob://a.json", DocumentStatus.Analyzed);
+
+        var second = await repo.TryApplyAnalysisResultAsync(
+            Guid.NewGuid(), id, "second pass", "blob://b.json", DocumentStatus.Analyzed);
+
+        Assert.True(second);
+        Assert.Equal("second pass", (await repo.GetAsync(id))!.AnalysisSummary);
+    }
+
+    [Fact]
+    public async Task Completed_and_failed_guards_do_not_block_each_other()
+    {
+        // The inbox key is (event, handler), so one event reaching two different
+        // handlers is not a duplicate.
+        var repo = NewRepository(out _);
+        var id = Guid.NewGuid();
+        var eventId = Guid.NewGuid();
+        await repo.CreateIfNotExistsAsync(id, "invoice.pdf");
+
+        var completed = await repo.TryApplyAnalysisResultAsync(
+            eventId, id, "s", "b", DocumentStatus.Analyzed);
+        var failed = await repo.TryApplyAnalysisFailureAsync(
+            eventId, id, DocumentStatus.Failed);
+
+        Assert.True(completed);
+        Assert.True(failed);
+    }
+
+    [Fact]
+    public async Task Applying_to_an_unknown_document_reports_failure()
+    {
+        var repo = NewRepository(out _);
+
+        Assert.False(await repo.TryApplyAnalysisResultAsync(
+            Guid.NewGuid(), Guid.NewGuid(), "s", "b", DocumentStatus.Analyzed));
     }
 }

@@ -36,7 +36,10 @@ public sealed class AnalyzeDocumentCommandHandler : IMessageHandler<AnalyzeDocum
 
             var blobRef = await _blobWriter.SaveAsync(cmd.DocumentId, extractedEntities, ct);
 
-            evt = new AnalysisCompletedEvent(cmd.DocumentId, summary, blobRef);
+            // A fresh id per emitted event. Redelivery of this message reuses it, so the
+            // consumer skips the duplicate; a genuine re-analysis mints a new one and is
+            // applied as the new result it is.
+            evt = new AnalysisCompletedEvent(Guid.NewGuid(), cmd.DocumentId, summary, blobRef);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -51,7 +54,7 @@ public sealed class AnalyzeDocumentCommandHandler : IMessageHandler<AnalyzeDocum
             _logger.LogError(ex, "Analysis failed for {DocumentId}", cmd.DocumentId);
 
             await _resultPublisher.PublishAsync(
-                new AnalysisFailedEvent(cmd.DocumentId, ex.Message), ct);
+                new AnalysisFailedEvent(Guid.NewGuid(), cmd.DocumentId, ex.Message), ct);
 
             return;
         }

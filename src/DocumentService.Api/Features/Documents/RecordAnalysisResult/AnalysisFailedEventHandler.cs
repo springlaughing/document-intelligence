@@ -26,9 +26,15 @@ public class AnalysisFailedEventHandler : IMessageHandler<AnalysisFailedEvent>
         _logger.LogWarning(
             "Applying AnalysisFailedEvent for {DocumentId}: {Reason}", evt.DocumentId, evt.Reason);
 
-        var updated = await _repo.SetStatusAsync(evt.DocumentId, DocumentStatus.Failed, ct);
+        // Guarded by EventId for the same reason as the completed handler: at-least-once.
+        var applied = await _repo.TryApplyAnalysisFailureAsync(
+            eventId: evt.EventId,
+            documentId: evt.DocumentId,
+            status: DocumentStatus.Failed,
+            ct: ct);
 
-        if (!updated)
-            _logger.LogWarning("Document {DocumentId} not found while applying failure.", evt.DocumentId);
+        if (!applied)
+            _logger.LogInformation(
+                "AnalysisFailedEvent {EventId} had no effect for {DocumentId}.", evt.EventId, evt.DocumentId);
     }
 }

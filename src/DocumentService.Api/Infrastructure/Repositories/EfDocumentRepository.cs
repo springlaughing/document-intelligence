@@ -73,36 +73,107 @@ public class EfDocumentRepository : IDocumentRepository
         );
     }
 
-    public async Task UpdateAnalysisResultAsync(
+    // Inbox discriminators. Stable strings rather than nameof(), because renaming a
+    // handler must not silently make every already-applied event look unseen.
+    private const string AnalysisCompletedHandler = "AnalysisCompleted";
+    private const string AnalysisFailedHandler = "AnalysisFailed";
+
+    public Task<bool> TryApplyAnalysisResultAsync(
+        Guid eventId,
         Guid documentId,
         string summary,
         string blobReference,
         DocumentStatus status,
-        CancellationToken ct = default)
+        CancellationToken ct = default) =>
+        TryApplyOnceAsync(eventId, AnalysisCompletedHandler, documentId, entity =>
         {
-            var entity = await _db.Documents.FirstOrDefaultAsync(d => d.Id == documentId, ct);
-            if (entity is null) return;
-
             entity.AnalysisSummary = summary;
             entity.AnalysisBlobRef = blobReference;
             entity.Status = status;
+        }, ct);
 
-            try
-            {
-                await _db.SaveChangesAsync(ct);
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                _logger.LogWarning(ex,
-                    "Concurrency conflict updating analysis result for {DocumentId}",
-                    documentId);
+    public Task<bool> TryApplyAnalysisFailureAsync(
+        Guid eventId,
+        Guid documentId,
+        DocumentStatus status,
+        CancellationToken ct = default) =>
+        TryApplyOnceAsync(eventId, AnalysisFailedHandler, documentId,
+            entity => entity.Status = status, ct);
 
-                // Depending on domain rules:
-                // - swallow (best-effort update, okay if we lost the race)
-                // - retry (re-read and reapply)
-                // - or rethrow (bubble up as failure)
-            }
+    private async Task<bool> TryApplyOnceAsync(
+        Guid eventId,
+        string handler,
+        Guid documentId,
+        Action<DocumentEntity> apply,
+        CancellationToken ct)
+    {
+        // Fast path for the ordinary case: the broker redelivered something already done.
+        if (await _db.ProcessedMessages.AnyAsync(
+                m => m.MessageId == eventId && m.Handler == handler, ct))
+        {
+            _logger.LogInformation(
+                "Event {EventId} was already applied by {Handler}; skipping.", eventId, handler);
+            return false;
         }
+
+        var entity = await _db.Documents.FirstOrDefaultAsync(d => d.Id == documentId, ct);
+        if (entity is null)
+        {
+            _logger.LogWarning(
+                "Document {DocumentId} not found while applying event {EventId}.", documentId, eventId);
+            return false;
+        }
+
+        apply(entity);
+
+        _db.ProcessedMessages.Add(new ProcessedMessage
+        {
+            MessageId = eventId,
+            Handler = handler,
+            ProcessedAtUtc = DateTimeOffset.UtcNow
+        });
+
+        try
+        {
+            // One SaveChanges, therefore one transaction. The document change and the
+            // record that it happened cannot end up disagreeing.
+            await _db.SaveChangesAsync(ct);
+            return true;
+        }
+        catch (DbUpdateException ex) when (IsUniqueKeyViolation(ex))
+        {
+            // Lost the race to a concurrent delivery of the same event. It applied; we
+            // did not. The check above cannot prevent this, the key constraint can.
+            _logger.LogInformation(
+                "Concurrent delivery of {EventId} was applied by {Handler} first.", eventId, handler);
+            return false;
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            // Someone changed the document between our read and our write. Now that
+            // RowVersion is a real concurrency token, this fires before the inbox key
+            // ever gets a chance to - two concurrent deliveries of one event collide on
+            // the document row first.
+            //
+            // So ask what the conflict was. If this same event is now recorded, the other
+            // delivery won and there is nothing left to do. Anything else is a real
+            // conflict with a different writer, and the message should be retried.
+            _db.ChangeTracker.Clear();
+
+            if (await _db.ProcessedMessages.AnyAsync(
+                    m => m.MessageId == eventId && m.Handler == handler, ct))
+            {
+                _logger.LogInformation(
+                    "Concurrent delivery of {EventId} was applied by {Handler} first.", eventId, handler);
+                return false;
+            }
+
+            _logger.LogWarning(ex,
+                "Concurrency conflict applying event {EventId} to document {DocumentId}.",
+                eventId, documentId);
+            throw;
+        }
+    }
 
         private static bool IsUniqueKeyViolation(DbUpdateException ex)
         {

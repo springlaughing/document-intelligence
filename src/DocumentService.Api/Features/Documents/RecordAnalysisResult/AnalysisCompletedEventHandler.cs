@@ -27,8 +27,10 @@ public class AnalysisCompletedEventHandler : IMessageHandler<AnalysisCompletedEv
         _logger.LogInformation("Applying AnalysisCompletedEvent for {DocumentId}", evt.DocumentId);
 
         // The event reports an outcome; this service owns the lifecycle and decides
-        // which status that outcome maps to.
-        await _repo.UpdateAnalysisResultAsync(
+        // which status that outcome maps to. Applying it is guarded by EventId, because
+        // the broker guarantees at-least-once delivery, not exactly-once.
+        var applied = await _repo.TryApplyAnalysisResultAsync(
+            eventId: evt.EventId,
             documentId: evt.DocumentId,
             summary: evt.Summary,
             blobReference: evt.BlobReference,
@@ -36,6 +38,10 @@ public class AnalysisCompletedEventHandler : IMessageHandler<AnalysisCompletedEv
             ct: ct
         );
 
-        _logger.LogInformation("Updated analysis result for {DocumentId}", evt.DocumentId);
+        if (applied)
+            _logger.LogInformation("Updated analysis result for {DocumentId}", evt.DocumentId);
+        else
+            _logger.LogInformation(
+                "AnalysisCompletedEvent {EventId} had no effect for {DocumentId}.", evt.EventId, evt.DocumentId);
     }
 }
