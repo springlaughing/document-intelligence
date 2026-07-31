@@ -100,6 +100,32 @@ public class EfDocumentRepository : IDocumentRepository
         TryApplyOnceAsync(eventId, AnalysisFailedHandler, documentId,
             entity => entity.Status = status, ct);
 
+    public async Task<bool> TryStartAnalysisAsync(
+        Guid documentId,
+        DocumentStatus status,
+        OutboxEnqueue message,
+        CancellationToken ct = default)
+    {
+        var entity = await _db.Documents.FirstOrDefaultAsync(d => d.Id == documentId, ct);
+        if (entity is null) return false;
+
+        entity.Status = status;
+
+        _db.OutboxMessages.Add(new OutboxMessage
+        {
+            Id = Guid.NewGuid(),
+            EntityName = message.EntityName,
+            MessageType = message.MessageType,
+            Payload = message.Payload,
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        });
+
+        // The single commit that replaces "save the status, then publish". There is no
+        // longer a second write that can fail on its own and strand the document.
+        await _db.SaveChangesAsync(ct);
+        return true;
+    }
+
     private async Task<bool> TryApplyOnceAsync(
         Guid eventId,
         string handler,

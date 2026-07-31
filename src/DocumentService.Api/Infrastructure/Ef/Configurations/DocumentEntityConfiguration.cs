@@ -1,5 +1,6 @@
 using DocumentService.Api.Infrastructure.Ef.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 
@@ -38,7 +39,18 @@ namespace DocumentService.Api.Infrastructure.Ef.Configurations
                         v => v == null ? null : string.Join("|||", v),
 
                         // from provider (back to string[])
-                        v => v == null ? null : v.Split(new[] { "|||" }, StringSplitOptions.None)
+                        v => v == null ? null : v.Split(new[] { "|||" }, StringSplitOptions.None),
+
+                        // A converted collection also needs a comparer. Without one EF
+                        // compares the array by reference, so mutating it in place looks
+                        // like no change at all and never gets saved. The snapshot must
+                        // also be a copy, or the "original" value tracks the mutation.
+                        new ValueComparer<string[]?>(
+                            (a, b) => a == null ? b == null : b != null && a.SequenceEqual(b),
+                            v => v == null
+                                ? 0
+                                : v.Aggregate(0, (hash, item) => HashCode.Combine(hash, item.GetHashCode())),
+                            v => v == null ? null : v.ToArray())
                     )
                 .HasColumnName("ExtractedEntities")
                 .HasMaxLength(4000);

@@ -26,7 +26,17 @@ public interface IDocumentRepository
     Task<bool> TryApplyAnalysisFailureAsync(
         Guid eventId, Guid documentId, DocumentStatus status, CancellationToken ct = default);
 
+    // Moves the document to the given status and queues the message that announces it,
+    // in one transaction. Callers must not publish separately: the whole point is that
+    // there is no second write that can fail on its own.
+    Task<bool> TryStartAnalysisAsync(
+        Guid documentId, DocumentStatus status, OutboxEnqueue message, CancellationToken ct = default);
+
 }
+
+// A message to be published, already serialized. The repository stores it; deciding
+// what to send and where belongs to the feature that wants it sent.
+public record OutboxEnqueue(string EntityName, string MessageType, string Payload);
 
 //internal projection type (not EF entity, not the HTTP DTO).
 public record DocumentRecord(

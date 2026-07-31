@@ -11,16 +11,16 @@ namespace DocumentService.Api.Features.Documents.RequestAnalysis;
 public class RequestAnalysisController : ControllerBase
 {
     private readonly IDocumentRepository _repo;
-    private readonly IAnalyzeDocumentCommandPublisher _publisher;
+    private readonly IAnalyzeDocumentCommandQueue _queue;
     private readonly ILogger<RequestAnalysisController> _logger;
 
     public RequestAnalysisController(
         IDocumentRepository repo,
-        IAnalyzeDocumentCommandPublisher publisher,
+        IAnalyzeDocumentCommandQueue queue,
         ILogger<RequestAnalysisController> logger)
     {
         _repo = repo;
-        _publisher = publisher;
+        _queue = queue;
         _logger = logger;
     }
 
@@ -57,14 +57,20 @@ public class RequestAnalysisController : ControllerBase
             });
         }
 
-        await _repo.SetStatusAsync(documentId, DocumentStatus.Analyzing, ct);
-
         var command = new AnalyzeDocumentCommand(
             DocumentId: documentId,
             FileName: record.FileName
         );
 
-        await _publisher.PublishAsync(command, ct);
+        // One call, one transaction: the document moves to Analyzing and the command is
+        // queued together. Previously these were two writes to two systems, so dying in
+        // between left the document Analyzing with no command ever sent, and nothing to
+        // notice. The relay publishes from the outbox.
+        var started = await _repo.TryStartAnalysisAsync(
+            documentId, DocumentStatus.Analyzing, _queue.Prepare(command), ct);
+
+        if (!started)
+            return NotFound(new { message = "Document not found", documentId });
 
         _logger.LogInformation(
             "Triggered analysis for document {DocumentId} ({FileName}) by {User}",

@@ -8,6 +8,7 @@ using DocumentIntelligence.Contracts;
 using DocumentService.Api.Features.Documents.RecordAnalysisResult;
 using DocumentService.Api.Features.Documents.RequestAnalysis;
 using DocumentService.Api.Infrastructure.Repositories;
+using DocumentService.Api.Infrastructure.Outbox;
 using DocumentService.Api.Infrastructure.Ef;
 using DocumentService.Api.Infrastructure.Ef.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -143,7 +144,12 @@ builder.Services.AddScoped<IDocumentRepository, EfDocumentRepository>();
 
 // Messaging
 builder.Services.AddSingleton<IMessagePublisher, AzureServiceBusPublisher>();
-builder.Services.AddScoped<IAnalyzeDocumentCommandPublisher, AnalyzeDocumentCommandPublisher>();
+builder.Services.AddScoped<IAnalyzeDocumentCommandQueue, AnalyzeDocumentCommandQueue>();
+
+// Nothing publishes the analyze command inline any more; it is written to the outbox
+// inside the same transaction as the status change, and this drains it.
+builder.Services.AddScoped<OutboxDrainer>();
+builder.Services.AddHostedService<OutboxRelay>();
 builder.Services.AddScoped<IMessageHandler<AnalysisCompletedEvent>, AnalysisCompletedEventHandler>();
 builder.Services.AddHostedService<AnalysisCompletedEventListener>();
 builder.Services.AddScoped<IMessageHandler<AnalysisFailedEvent>, AnalysisFailedEventHandler>();
