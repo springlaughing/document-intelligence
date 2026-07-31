@@ -20,6 +20,12 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 
+// The Azure SDK only emits ActivitySource spans - and only injects W3C traceparent into
+// outgoing messages - when this is on. Without it the Service Bus hop produces no spans
+// at all, so a trace stops dead at the publish and starts fresh in the consumer. Must be
+// set before any Azure client is constructed, hence the very first line.
+AppContext.SetSwitch("Azure.Experimental.EnableActivitySource", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Logging.ClearProviders();

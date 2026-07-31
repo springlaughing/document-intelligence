@@ -12,6 +12,12 @@ using System.Text.Json.Serialization;
 
 
 
+// The Azure SDK only emits ActivitySource spans - and only reads the W3C traceparent
+// carried on an incoming message - when this is on. Without it this service starts a new,
+// unrelated trace for every message it handles. Must be set before any Azure client is
+// constructed, hence the very first line.
+AppContext.SetSwitch("Azure.Experimental.EnableActivitySource", true);
+
 var builder = Host.CreateApplicationBuilder(args);
 
 builder.Logging.ClearProviders();
