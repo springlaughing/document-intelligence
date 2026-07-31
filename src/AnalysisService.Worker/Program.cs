@@ -98,8 +98,9 @@ builder.Services.AddScoped<IAnalysisResultEventPublisher, AnalysisResultEventPub
 builder.Services.AddHostedService<AnalyzeDocumentCommandListener>();
 builder.Services.AddScoped<IMessageHandler<AnalyzeDocumentCommand>, AnalyzeDocumentCommandHandler>();
 
-// BlobWriter is stateless -> singleton.
-builder.Services.AddSingleton<IBlobWriter, BlobWriter>();
+// Singleton because the stand-in holds its results in a dictionary; a real blob-backed
+// implementation would be equally happy as a singleton, holding only a client.
+builder.Services.AddSingleton<IAnalysisResultStore, InMemoryAnalysisResultStore>();
 
 
 

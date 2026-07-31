@@ -7,16 +7,16 @@ namespace AnalysisService.Worker.Messaging;
 
 public sealed class AnalyzeDocumentCommandHandler : IMessageHandler<AnalyzeDocumentCommand>
 {
-    private readonly IBlobWriter _blobWriter;
+    private readonly IAnalysisResultStore _results;
     private readonly IAnalysisResultEventPublisher _resultPublisher;
     private readonly ILogger<AnalyzeDocumentCommandHandler> _logger;
 
     public AnalyzeDocumentCommandHandler(
-        IBlobWriter blobWriter,
+        IAnalysisResultStore results,
         IAnalysisResultEventPublisher resultPublisher,
         ILogger<AnalyzeDocumentCommandHandler> logger)
     {
-        _blobWriter = blobWriter;
+        _results = results;
         _resultPublisher = resultPublisher;
         _logger = logger;
     }
@@ -27,24 +27,32 @@ public sealed class AnalyzeDocumentCommandHandler : IMessageHandler<AnalyzeDocum
 
         _logger.LogInformation("Handling AnalyzeDocumentCommand for {DocumentId}", cmd.DocumentId);
 
-        AnalysisCompletedEvent evt;
+        StoredAnalysis analysis;
         try
         {
-            // demo analysis
-            var extractedEntities = new[] { "InvoiceNo:12345", "Amount:99.99" };
-            var summary = $"Auto summary for {cmd.FileName}";
+            // Ask the output store whether this command has already been analysed. The
+            // broker delivers at least once and this service keeps no state of its own,
+            // so the store is what stands in for a memory - and analysis is the expensive
+            // part, which is exactly what should not be repeated.
+            var existing = await _results.TryGetAsync(cmd.CommandId, ct);
 
-            var blobRef = await _blobWriter.SaveAsync(cmd.DocumentId, extractedEntities, ct);
+            if (existing is not null)
+            {
+                _logger.LogInformation(
+                    "Command {CommandId} was already analysed; republishing the stored result.",
+                    cmd.CommandId);
 
-            // Derived from the command, not generated fresh. A redelivered command
-            // therefore emits the same event id and the consumer's inbox discards it,
-            // while a genuine re-analysis arrives with a new CommandId and is applied as
-            // the new result it is.
-            evt = new AnalysisCompletedEvent(
-                DeterministicId.From(cmd.CommandId, "analysis-completed"),
-                cmd.DocumentId,
-                summary,
-                blobRef);
+                analysis = existing;
+            }
+            else
+            {
+                // demo analysis
+                var extractedEntities = new[] { "InvoiceNo:12345", "Amount:99.99" };
+                var summary = $"Auto summary for {cmd.FileName}";
+
+                analysis = await _results.SaveAsync(
+                    cmd.CommandId, cmd.DocumentId, summary, extractedEntities, ct);
+            }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -68,6 +76,15 @@ public sealed class AnalyzeDocumentCommandHandler : IMessageHandler<AnalyzeDocum
             return;
         }
 
-        await _resultPublisher.PublishAsync(evt, ct);
+        // Published whether the analysis just ran or was skipped: skipping the work does
+        // not mean the result was ever successfully announced. The id is derived from the
+        // command, so a redelivery republishes something the consumer's inbox discards.
+        await _resultPublisher.PublishAsync(
+            new AnalysisCompletedEvent(
+                DeterministicId.From(cmd.CommandId, "analysis-completed"),
+                cmd.DocumentId,
+                analysis.Summary,
+                analysis.BlobReference),
+            ct);
     }
 }
