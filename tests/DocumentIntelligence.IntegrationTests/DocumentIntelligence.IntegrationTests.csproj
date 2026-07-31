@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+
+    <!-- Lets a test skip itself when the broker or database is not there, so the suite
+         stays green on a machine with no containers instead of failing for the wrong
+         reason. -->
+    <PackageReference Include="Xunit.SkippableFact" Version="1.4.13" />
+
+    <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.20.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.10" />
+
+    <!-- EF Core 9 needs System.Text.Json 9 at runtime; without this the net8.0 framework
+         copy wins and anything touching EF throws FileNotFoundException. -->
+    <PackageReference Include="System.Text.Json" Version="9.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DocumentService.Api\DocumentService.Api.csproj" />
+    <ProjectReference Include="..\..\src\DocumentIntelligence.Messaging\DocumentIntelligence.Messaging.csproj" />
+    <ProjectReference Include="..\..\src\DocumentIntelligence.Contracts\DocumentIntelligence.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>
