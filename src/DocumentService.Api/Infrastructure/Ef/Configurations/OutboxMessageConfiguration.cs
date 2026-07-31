@@ -16,6 +16,10 @@ namespace DocumentService.Api.Infrastructure.Ef.Configurations
             outbox.Property(m => m.EntityName).IsRequired().HasMaxLength(260);
             outbox.Property(m => m.MessageType).IsRequired().HasMaxLength(260);
             outbox.Property(m => m.Payload).IsRequired();
+
+            // "00-<32 hex trace id>-<16 hex span id>-<2 hex flags>" is 55 characters;
+            // the cap leaves room without inviting anything else into the column.
+            outbox.Property(m => m.TraceParent).HasMaxLength(128);
             outbox.Property(m => m.CreatedAtUtc).IsRequired();
             outbox.Property(m => m.LastError).HasMaxLength(2000);
 

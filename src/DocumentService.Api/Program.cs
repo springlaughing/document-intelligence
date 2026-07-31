@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
 using DocumentIntelligence.Messaging;
@@ -21,7 +23,17 @@ using System.Text.Json.Serialization;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Logging.ClearProviders();
-builder.Logging.AddSimpleConsole(o => o.TimestampFormat = "HH:mm:ss ");
+builder.Logging.AddSimpleConsole(o =>
+{
+    o.TimestampFormat = "HH:mm:ss ";
+    o.IncludeScopes = true;   // without this the trace id below is collected but never shown
+});
+
+// Stamps every log line with the current trace, so lines belonging to one request - or
+// to one message, on either side of the wire - can be pulled together. This is the
+// correlation id; there is no need to invent a second one.
+builder.Logging.Configure(o =>
+    o.ActivityTrackingOptions = ActivityTrackingOptions.TraceId | ActivityTrackingOptions.SpanId);
 
 var authMode = builder.Configuration["AUTH_MODE"] ?? "userjwts";
 
@@ -49,20 +61,37 @@ builder.Services.AddSingleton(sp => new JsonSerializerOptions(JsonSerializerDefa
 {
     Converters = { new JsonStringEnumConverter() }
 });
-if (!builder.Environment.IsDevelopment())
+// Tracing always registers; only the exporter depends on the environment. Previously the
+// whole pipeline was skipped unless this was a non-Development environment *and* an
+// Application Insights connection string existed - so the one environment where you are
+// actually trying to follow a message through the system was the one producing no traces
+// at all.
+var aiConnectionString =
+    builder.Configuration["ApplicationInsights:ConnectionString"]
+    ?? Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");
+
+var telemetry = builder.Services.AddOpenTelemetry()
+    .ConfigureResource(r => r.AddService(builder.Environment.ApplicationName));
+
+telemetry.WithTracing(tracing =>
 {
-    var aiConnStr =
-        builder.Configuration["ApplicationInsights:ConnectionString"]
-        ?? Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");
+    tracing.AddAspNetCoreInstrumentation();
 
-    if (!string.IsNullOrWhiteSpace(aiConnStr))
-    {
-        builder.Services.AddOpenTelemetry()
-            .ConfigureResource(r => r.AddService(builder.Environment.ApplicationName))
-            .UseAzureMonitor(o => o.ConnectionString = aiConnStr);
-    }
+    // The Azure SDK emits a span for every send and receive and propagates W3C
+    // traceparent inside the message. That is what stitches the two services together
+    // across the wire hop - the hop Go-to-Definition cannot follow.
+    tracing.AddSource("Azure.*");
 
-}
+    // Spans this service raises itself, currently the outbox relay restoring the trace
+    // of the request that queued a message.
+    tracing.AddSource(OutboxTelemetry.ActivitySourceName);
+
+    if (string.IsNullOrWhiteSpace(aiConnectionString) && builder.Environment.IsDevelopment())
+        tracing.AddConsoleExporter();
+});
+
+if (!string.IsNullOrWhiteSpace(aiConnectionString))
+    telemetry.UseAzureMonitor(o => o.ConnectionString = aiConnectionString);
 
 builder.Services.AddSingleton(sp =>
 {

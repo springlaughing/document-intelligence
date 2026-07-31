@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using DocumentIntelligence.Messaging;
 using DocumentService.Api.Infrastructure.Ef;
 using Microsoft.EntityFrameworkCore;
@@ -39,6 +40,17 @@ public class OutboxDrainer
 
         foreach (var message in pending)
         {
+            // Re-enter the trace of the request that queued this message, so the send
+            // span the Azure SDK is about to emit hangs off the original operation
+            // rather than starting a new, orphaned trace.
+            using var activity = OutboxTelemetry.Source.StartActivity(
+                "outbox publish", ActivityKind.Producer, message.TraceParent);
+
+            activity?.SetTag("messaging.system", "servicebus");
+            activity?.SetTag("messaging.destination.name", message.EntityName);
+            activity?.SetTag("messaging.message.id", message.Id);
+            activity?.SetTag("messaging.message.type", message.MessageType);
+
             try
             {
                 // The outbox row id doubles as the broker MessageId. If this relay
@@ -64,6 +76,8 @@ public class OutboxDrainer
                 // looping forever.
                 message.Attempts++;
                 message.LastError = ex.Message.Length > 2000 ? ex.Message[..2000] : ex.Message;
+
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
 
                 _logger.LogError(ex,
                     "Failed to publish outbox message {MessageId} ({MessageType}); attempt {Attempts}.",

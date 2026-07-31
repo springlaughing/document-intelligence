@@ -1,4 +1,5 @@
 
+using System.Diagnostics;
 using DocumentService.Api.Domain;
 using DocumentService.Api.Infrastructure.Ef;
 using Microsoft.EntityFrameworkCore;
@@ -117,6 +118,10 @@ public class EfDocumentRepository : IDocumentRepository
             EntityName = message.EntityName,
             MessageType = message.MessageType,
             Payload = message.Payload,
+
+            // Captured here, while still inside the request that decided to send this.
+            TraceParent = Activity.Current?.Id,
+
             CreatedAtUtc = DateTimeOffset.UtcNow
         });
 

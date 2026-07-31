@@ -24,6 +24,11 @@ public class OutboxMessage
 
     public string Payload { get; set; } = default!;
 
+    // W3C traceparent of the operation that queued this message. Stored because the
+    // relay publishes later, on its own schedule, with no ambient trace of its own -
+    // without this the outbox would silently cut every trace in half.
+    public string? TraceParent { get; set; }
+
     public DateTimeOffset CreatedAtUtc { get; set; }
 
     // Null until published. This is the column the relay scans.
