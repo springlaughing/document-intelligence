@@ -20,7 +20,7 @@ public class AnalyzeDocumentCommandQueueTests
     [Fact]
     public void Prepare_targets_the_configured_queue_and_round_trips_the_command()
     {
-        var cmd = new AnalyzeDocumentCommand(Guid.NewGuid(), "invoice.pdf");
+        var cmd = new AnalyzeDocumentCommand(Guid.NewGuid(), Guid.NewGuid(), "invoice.pdf");
 
         var enqueued = CreateSut("analyze-document").Prepare(cmd);
 
@@ -38,7 +38,7 @@ public class AnalyzeDocumentCommandQueueTests
     [Fact]
     public void Prepare_falls_back_to_the_default_queue_name()
     {
-        var enqueued = CreateSut(null).Prepare(new AnalyzeDocumentCommand(Guid.NewGuid(), "a.pdf"));
+        var enqueued = CreateSut(null).Prepare(new AnalyzeDocumentCommand(Guid.NewGuid(), Guid.NewGuid(), "a.pdf"));
 
         Assert.Equal("analyze-document", enqueued.EntityName);
     }

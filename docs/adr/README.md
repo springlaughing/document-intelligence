@@ -15,3 +15,4 @@ supersedes the old one, and the old one is marked as superseded rather than edit
 |---|----------|--------|
 | [0001](0001-transactional-outbox-for-command-publishing.md) | Transactional outbox for command publishing | Accepted |
 | [0002](0002-accept-the-inbox-recheck-race.md) | Accept the inbox re-check race rather than lock | Accepted |
+| [0003](0003-deterministic-event-ids-instead-of-a-worker-inbox.md) | Deterministic event ids instead of an inbox in the analysis service | Accepted |

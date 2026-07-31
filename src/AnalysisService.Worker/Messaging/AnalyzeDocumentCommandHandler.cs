@@ -36,10 +36,15 @@ public sealed class AnalyzeDocumentCommandHandler : IMessageHandler<AnalyzeDocum
 
             var blobRef = await _blobWriter.SaveAsync(cmd.DocumentId, extractedEntities, ct);
 
-            // A fresh id per emitted event. Redelivery of this message reuses it, so the
-            // consumer skips the duplicate; a genuine re-analysis mints a new one and is
-            // applied as the new result it is.
-            evt = new AnalysisCompletedEvent(Guid.NewGuid(), cmd.DocumentId, summary, blobRef);
+            // Derived from the command, not generated fresh. A redelivered command
+            // therefore emits the same event id and the consumer's inbox discards it,
+            // while a genuine re-analysis arrives with a new CommandId and is applied as
+            // the new result it is.
+            evt = new AnalysisCompletedEvent(
+                DeterministicId.From(cmd.CommandId, "analysis-completed"),
+                cmd.DocumentId,
+                summary,
+                blobRef);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -54,7 +59,11 @@ public sealed class AnalyzeDocumentCommandHandler : IMessageHandler<AnalyzeDocum
             _logger.LogError(ex, "Analysis failed for {DocumentId}", cmd.DocumentId);
 
             await _resultPublisher.PublishAsync(
-                new AnalysisFailedEvent(Guid.NewGuid(), cmd.DocumentId, ex.Message), ct);
+                new AnalysisFailedEvent(
+                    DeterministicId.From(cmd.CommandId, "analysis-failed"),
+                    cmd.DocumentId,
+                    ex.Message),
+                ct);
 
             return;
         }

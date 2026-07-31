@@ -57,7 +57,11 @@ public class RequestAnalysisController : ControllerBase
             });
         }
 
+        // A new id per request to analyse. Redelivery of the queued command reuses it,
+        // so the worker's result is identical and gets deduplicated downstream; asking
+        // for analysis again is a different request and gets a new one.
         var command = new AnalyzeDocumentCommand(
+            CommandId: Guid.NewGuid(),
             DocumentId: documentId,
             FileName: record.FileName
         );
