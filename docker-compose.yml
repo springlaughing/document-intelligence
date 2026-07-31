@@ -41,7 +41,11 @@ services:
     ports:
       - "5140:8080"
     depends_on:
-      - servicebus
+      servicebus:
+        condition: service_started
+      # The API applies migrations at startup, so the database must be up first.
+      sqledge:
+        condition: service_healthy
     networks:
       - backend
 

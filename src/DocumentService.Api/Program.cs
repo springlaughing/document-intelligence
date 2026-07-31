@@ -112,17 +112,30 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy("AdminOnly", p => p.RequireRole("admin"));
 
 
+// SQL Server when a connection string is configured, InMemory otherwise - the same
+// shape as the ServiceBusClient registration above.
+//
+// InMemory keeps `dotnet run` working with no containers, but it is not a relational
+// store: it ignores the RowVersion concurrency token, max lengths and unique
+// constraints that DocumentEntityConfiguration declares. Anything that depends on
+// those - optimistic concurrency, idempotency by unique key, the outbox - only really
+// works on the relational path.
+var documentDbConnection = builder.Configuration.GetConnectionString("DocumentDb");
+var useRelationalDb = !string.IsNullOrWhiteSpace(documentDbConnection);
+
 builder.Services.AddDbContext<DocumentApiDbContext>(options =>
 {
-    
-    // InMemory (für lokale Tests)
-    options.UseInMemoryDatabase("DocumentApiDb");
-    
-    // Cloud später: 
-    // o.UseSqlServer(connString, sql => sql.EnableRetryOnFailure(
-    // maxRetryCount: 5,
-    // maxRetryDelay: TimeSpan.FromSeconds(5),
-    // errorNumbersToAdd: null)));
+    if (useRelationalDb)
+    {
+        options.UseSqlServer(documentDbConnection, sql => sql.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(5),
+            errorNumbersToAdd: null));
+    }
+    else
+    {
+        options.UseInMemoryDatabase("DocumentApiDb");
+    }
 });
 
 // Repo
@@ -176,12 +189,20 @@ var env = app.Environment;
 app.Logger.LogInformation("Environment: {Env} (IsDevelopment={IsDev})",
     env.EnvironmentName, env.IsDevelopment());
 
-// Seed initial data (dev only)
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<DocumentApiDbContext>();
 
-    if (!db.Documents.Any())
+    // Migrating at startup is a convenience for a local demo. A real deployment applies
+    // migrations as its own step, so two replicas starting together cannot race here.
+    if (useRelationalDb)
+    {
+        app.Logger.LogInformation("Applying migrations to the document database.");
+        await db.Database.MigrateAsync();
+    }
+
+    // Demo data, development only - it used to be seeded in every environment.
+    if (app.Environment.IsDevelopment() && !db.Documents.Any())
     {
         var doc1Id = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
         var doc2Id = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
