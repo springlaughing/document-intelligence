@@ -48,7 +48,8 @@ public sealed class ServiceBusMessageProcessor<T> : IAsyncDisposable
             if (payload is null)
             {
                 _logger.LogWarning("Unable to deserialize {Type} - dead-lettering.", typeof(T).Name);
-                await args.DeadLetterMessageAsync(args.Message, "DeserializationFailed", "Could not deserialize payload");
+                await args.DeadLetterMessageAsync(
+                    args.Message, "DeserializationFailed", "Could not deserialize payload", args.CancellationToken);
                 return;
             }
 
@@ -62,17 +63,34 @@ public sealed class ServiceBusMessageProcessor<T> : IAsyncDisposable
         {
             // shutting down
         }
+        catch (UnprocessableMessageException ex)
+        {
+            // The handler has told us retrying is pointless. Dead-letter immediately
+            // rather than burning five deliveries to reach the same place with a less
+            // informative reason.
+            _logger.LogError(ex,
+                "{Type} cannot be processed - dead-lettering immediately.", typeof(T).Name);
+
+            await args.DeadLetterMessageAsync(
+                args.Message, "Unprocessable", Truncate(ex.Message, 4000), args.CancellationToken);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error handling {Type}. DeliveryCount={Count}", typeof(T).Name, args.Message.DeliveryCount);
 
             // retry/DLQ policy: after N attempts, dead-letter
             if (args.Message.DeliveryCount >= 5)
-                await args.DeadLetterMessageAsync(args.Message, "MaxDeliveryExceeded", ex.Message);
+                await args.DeadLetterMessageAsync(
+                    args.Message, "MaxDeliveryExceeded", Truncate(ex.Message, 4000), args.CancellationToken);
             else
                 await args.AbandonMessageAsync(args.Message);
         }
     }
+
+    // Service Bus rejects an over-long dead-letter description, which would turn a
+    // clean dead-letter into an exception inside the error path.
+    private static string Truncate(string value, int max) =>
+        value.Length <= max ? value : value[..max];
 
     private Task OnErrorAsync(ProcessErrorEventArgs args)
     {

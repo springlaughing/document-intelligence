@@ -41,8 +41,13 @@ public class OutboxDrainer
         {
             try
             {
+                // The outbox row id doubles as the broker MessageId. If this relay
+                // publishes and then dies before recording the send, the retry carries
+                // the same id - so an entity with duplicate detection turned on discards
+                // it. Belt to the inbox's braces.
                 await _publisher.PublishRawAsync(
-                    message.EntityName, message.Payload, message.MessageType, ct);
+                    message.EntityName, message.Payload, message.MessageType,
+                    message.Id.ToString(), ct);
 
                 // Publishing and recording the publish are two systems again, so they
                 // cannot be atomic. Crashing here means the message is sent but still

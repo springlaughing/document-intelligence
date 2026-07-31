@@ -29,7 +29,7 @@ public class AnalysisCompletedEventHandler : IMessageHandler<AnalysisCompletedEv
         // The event reports an outcome; this service owns the lifecycle and decides
         // which status that outcome maps to. Applying it is guarded by EventId, because
         // the broker guarantees at-least-once delivery, not exactly-once.
-        var applied = await _repo.TryApplyAnalysisResultAsync(
+        var outcome = await _repo.ApplyAnalysisResultAsync(
             eventId: evt.EventId,
             documentId: evt.DocumentId,
             summary: evt.Summary,
@@ -38,10 +38,25 @@ public class AnalysisCompletedEventHandler : IMessageHandler<AnalysisCompletedEv
             ct: ct
         );
 
-        if (applied)
-            _logger.LogInformation("Updated analysis result for {DocumentId}", evt.DocumentId);
-        else
-            _logger.LogInformation(
-                "AnalysisCompletedEvent {EventId} had no effect for {DocumentId}.", evt.EventId, evt.DocumentId);
+        switch (outcome)
+        {
+            case ApplyOutcome.Applied:
+                _logger.LogInformation("Updated analysis result for {DocumentId}", evt.DocumentId);
+                break;
+
+            case ApplyOutcome.AlreadyApplied:
+                // Routine: the broker redelivered something already handled.
+                _logger.LogInformation(
+                    "AnalysisCompletedEvent {EventId} was already applied to {DocumentId}.",
+                    evt.EventId, evt.DocumentId);
+                break;
+
+            case ApplyOutcome.DocumentNotFound:
+                // Nothing can delete a document in this service, so this is a symptom -
+                // a defect, crossed environments, or lost data. Retrying cannot help, and
+                // completing the message would discard the evidence.
+                throw new UnprocessableMessageException(
+                    $"AnalysisCompletedEvent {evt.EventId} refers to document {evt.DocumentId}, which does not exist.");
+        }
     }
 }

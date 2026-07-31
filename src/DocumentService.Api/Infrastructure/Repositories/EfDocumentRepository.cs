@@ -78,26 +78,26 @@ public class EfDocumentRepository : IDocumentRepository
     private const string AnalysisCompletedHandler = "AnalysisCompleted";
     private const string AnalysisFailedHandler = "AnalysisFailed";
 
-    public Task<bool> TryApplyAnalysisResultAsync(
+    public Task<ApplyOutcome> ApplyAnalysisResultAsync(
         Guid eventId,
         Guid documentId,
         string summary,
         string blobReference,
         DocumentStatus status,
         CancellationToken ct = default) =>
-        TryApplyOnceAsync(eventId, AnalysisCompletedHandler, documentId, entity =>
+        ApplyOnceAsync(eventId, AnalysisCompletedHandler, documentId, entity =>
         {
             entity.AnalysisSummary = summary;
             entity.AnalysisBlobRef = blobReference;
             entity.Status = status;
         }, ct);
 
-    public Task<bool> TryApplyAnalysisFailureAsync(
+    public Task<ApplyOutcome> ApplyAnalysisFailureAsync(
         Guid eventId,
         Guid documentId,
         DocumentStatus status,
         CancellationToken ct = default) =>
-        TryApplyOnceAsync(eventId, AnalysisFailedHandler, documentId,
+        ApplyOnceAsync(eventId, AnalysisFailedHandler, documentId,
             entity => entity.Status = status, ct);
 
     public async Task<bool> TryStartAnalysisAsync(
@@ -126,7 +126,7 @@ public class EfDocumentRepository : IDocumentRepository
         return true;
     }
 
-    private async Task<bool> TryApplyOnceAsync(
+    private async Task<ApplyOutcome> ApplyOnceAsync(
         Guid eventId,
         string handler,
         Guid documentId,
@@ -139,7 +139,7 @@ public class EfDocumentRepository : IDocumentRepository
         {
             _logger.LogInformation(
                 "Event {EventId} was already applied by {Handler}; skipping.", eventId, handler);
-            return false;
+            return ApplyOutcome.AlreadyApplied;
         }
 
         var entity = await _db.Documents.FirstOrDefaultAsync(d => d.Id == documentId, ct);
@@ -147,7 +147,7 @@ public class EfDocumentRepository : IDocumentRepository
         {
             _logger.LogWarning(
                 "Document {DocumentId} not found while applying event {EventId}.", documentId, eventId);
-            return false;
+            return ApplyOutcome.DocumentNotFound;
         }
 
         apply(entity);
@@ -164,7 +164,7 @@ public class EfDocumentRepository : IDocumentRepository
             // One SaveChanges, therefore one transaction. The document change and the
             // record that it happened cannot end up disagreeing.
             await _db.SaveChangesAsync(ct);
-            return true;
+            return ApplyOutcome.Applied;
         }
         catch (DbUpdateException ex) when (IsUniqueKeyViolation(ex))
         {
@@ -172,7 +172,7 @@ public class EfDocumentRepository : IDocumentRepository
             // did not. The check above cannot prevent this, the key constraint can.
             _logger.LogInformation(
                 "Concurrent delivery of {EventId} was applied by {Handler} first.", eventId, handler);
-            return false;
+            return ApplyOutcome.AlreadyApplied;
         }
         catch (DbUpdateConcurrencyException ex)
         {
@@ -191,7 +191,7 @@ public class EfDocumentRepository : IDocumentRepository
             {
                 _logger.LogInformation(
                     "Concurrent delivery of {EventId} was applied by {Handler} first.", eventId, handler);
-                return false;
+                return ApplyOutcome.AlreadyApplied;
             }
 
             _logger.LogWarning(ex,

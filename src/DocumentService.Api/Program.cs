@@ -150,6 +150,10 @@ builder.Services.AddScoped<IAnalyzeDocumentCommandQueue, AnalyzeDocumentCommandQ
 // inside the same transaction as the status change, and this drains it.
 builder.Services.AddScoped<OutboxDrainer>();
 builder.Services.AddHostedService<OutboxRelay>();
+
+// Both the inbox and the outbox are append-only; without this they grow forever.
+builder.Services.AddScoped<MessageRetentionSweeper>();
+builder.Services.AddHostedService<MessageRetentionService>();
 builder.Services.AddScoped<IMessageHandler<AnalysisCompletedEvent>, AnalysisCompletedEventHandler>();
 builder.Services.AddHostedService<AnalysisCompletedEventListener>();
 builder.Services.AddScoped<IMessageHandler<AnalysisFailedEvent>, AnalysisFailedEventHandler>();

@@ -79,10 +79,10 @@ public class EfDocumentRepositoryTests
         var id = Guid.NewGuid();
         await repo.CreateIfNotExistsAsync(id, "invoice.pdf");
 
-        var applied = await repo.TryApplyAnalysisResultAsync(
+        var applied = await repo.ApplyAnalysisResultAsync(
             Guid.NewGuid(), id, "a summary", "blob://ref.json", DocumentStatus.Analyzed);
 
-        Assert.True(applied);
+        Assert.Equal(ApplyOutcome.Applied, applied);
 
         var record = await repo.GetAsync(id);
 
@@ -100,14 +100,14 @@ public class EfDocumentRepositoryTests
         var eventId = Guid.NewGuid();
         await repo.CreateIfNotExistsAsync(id, "invoice.pdf");
 
-        var first = await repo.TryApplyAnalysisResultAsync(
+        var first = await repo.ApplyAnalysisResultAsync(
             eventId, id, "first result", "blob://first.json", DocumentStatus.Analyzed);
 
-        var second = await repo.TryApplyAnalysisResultAsync(
+        var second = await repo.ApplyAnalysisResultAsync(
             eventId, id, "SECOND result", "blob://second.json", DocumentStatus.Analyzed);
 
-        Assert.True(first);
-        Assert.False(second);
+        Assert.Equal(ApplyOutcome.Applied, first);
+        Assert.Equal(ApplyOutcome.AlreadyApplied, second);
 
         var record = await repo.GetAsync(id);
         Assert.Equal("first result", record!.AnalysisSummary);      // untouched
@@ -122,13 +122,13 @@ public class EfDocumentRepositoryTests
         var id = Guid.NewGuid();
         await repo.CreateIfNotExistsAsync(id, "invoice.pdf");
 
-        await repo.TryApplyAnalysisResultAsync(
+        await repo.ApplyAnalysisResultAsync(
             Guid.NewGuid(), id, "first pass", "blob://a.json", DocumentStatus.Analyzed);
 
-        var second = await repo.TryApplyAnalysisResultAsync(
+        var second = await repo.ApplyAnalysisResultAsync(
             Guid.NewGuid(), id, "second pass", "blob://b.json", DocumentStatus.Analyzed);
 
-        Assert.True(second);
+        Assert.Equal(ApplyOutcome.Applied, second);
         Assert.Equal("second pass", (await repo.GetAsync(id))!.AnalysisSummary);
     }
 
@@ -142,21 +142,23 @@ public class EfDocumentRepositoryTests
         var eventId = Guid.NewGuid();
         await repo.CreateIfNotExistsAsync(id, "invoice.pdf");
 
-        var completed = await repo.TryApplyAnalysisResultAsync(
+        var completed = await repo.ApplyAnalysisResultAsync(
             eventId, id, "s", "b", DocumentStatus.Analyzed);
-        var failed = await repo.TryApplyAnalysisFailureAsync(
+        var failed = await repo.ApplyAnalysisFailureAsync(
             eventId, id, DocumentStatus.Failed);
 
-        Assert.True(completed);
-        Assert.True(failed);
+        Assert.Equal(ApplyOutcome.Applied, completed);
+        Assert.Equal(ApplyOutcome.Applied, failed);
     }
 
     [Fact]
-    public async Task Applying_to_an_unknown_document_reports_failure()
+    public async Task Applying_to_an_unknown_document_is_reported_as_such()
     {
         var repo = NewRepository(out _);
 
-        Assert.False(await repo.TryApplyAnalysisResultAsync(
+        // Reported distinctly from a duplicate, because the caller must react
+        // differently: this one is dead-lettered rather than quietly completed.
+        Assert.Equal(ApplyOutcome.DocumentNotFound, await repo.ApplyAnalysisResultAsync(
             Guid.NewGuid(), Guid.NewGuid(), "s", "b", DocumentStatus.Analyzed));
     }
 }

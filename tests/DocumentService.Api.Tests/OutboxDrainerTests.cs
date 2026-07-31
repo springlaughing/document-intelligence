@@ -39,7 +39,7 @@ public class OutboxDrainerTests
 
         Assert.Equal(1, sent);
         publisher.Verify(p => p.PublishRawAsync(
-            "analyze-document", msg.Payload, "AnalyzeDocumentCommand", It.IsAny<CancellationToken>()),
+            "analyze-document", msg.Payload, "AnalyzeDocumentCommand", msg.Id.ToString(), It.IsAny<CancellationToken>()),
             Times.Once);
 
         var stored = await NewDb(dbName).OutboxMessages.SingleAsync();
@@ -58,7 +58,7 @@ public class OutboxDrainerTests
 
         var publisher = new Mock<IMessagePublisher>();
         publisher.Setup(p => p.PublishRawAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("service bus unreachable"));
 
         var sut = new OutboxDrainer(NewDb(dbName), publisher.Object, Mock.Of<ILogger<OutboxDrainer>>());
@@ -83,7 +83,7 @@ public class OutboxDrainerTests
 
         var publisher = new Mock<IMessagePublisher>();
         publisher.SetupSequence(p => p.PublishRawAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("transient"))
             .Returns(Task.CompletedTask);
 
@@ -135,8 +135,8 @@ public class OutboxDrainerTests
         var order = new List<string>();
         var publisher = new Mock<IMessagePublisher>();
         publisher.Setup(p => p.PublishRawAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Callback<string, string, string, CancellationToken>((_, payload, _, _) => order.Add(payload))
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, string?, CancellationToken>((_, payload, _, _, _) => order.Add(payload))
             .Returns(Task.CompletedTask);
 
         await new OutboxDrainer(NewDb(dbName), publisher.Object, Mock.Of<ILogger<OutboxDrainer>>())

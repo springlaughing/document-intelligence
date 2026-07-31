@@ -27,14 +27,27 @@ public class AnalysisFailedEventHandler : IMessageHandler<AnalysisFailedEvent>
             "Applying AnalysisFailedEvent for {DocumentId}: {Reason}", evt.DocumentId, evt.Reason);
 
         // Guarded by EventId for the same reason as the completed handler: at-least-once.
-        var applied = await _repo.TryApplyAnalysisFailureAsync(
+        var outcome = await _repo.ApplyAnalysisFailureAsync(
             eventId: evt.EventId,
             documentId: evt.DocumentId,
             status: DocumentStatus.Failed,
             ct: ct);
 
-        if (!applied)
-            _logger.LogInformation(
-                "AnalysisFailedEvent {EventId} had no effect for {DocumentId}.", evt.EventId, evt.DocumentId);
+        switch (outcome)
+        {
+            case ApplyOutcome.Applied:
+                _logger.LogInformation("Marked {DocumentId} as failed.", evt.DocumentId);
+                break;
+
+            case ApplyOutcome.AlreadyApplied:
+                _logger.LogInformation(
+                    "AnalysisFailedEvent {EventId} was already applied to {DocumentId}.",
+                    evt.EventId, evt.DocumentId);
+                break;
+
+            case ApplyOutcome.DocumentNotFound:
+                throw new UnprocessableMessageException(
+                    $"AnalysisFailedEvent {evt.EventId} refers to document {evt.DocumentId}, which does not exist.");
+        }
     }
 }

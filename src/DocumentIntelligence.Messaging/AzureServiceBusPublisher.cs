@@ -21,9 +21,10 @@ public class AzureServiceBusPublisher : IMessagePublisher, IAsyncDisposable
     }
 
     public Task PublishAsync<T>(string entityName, T message, CancellationToken ct = default) =>
-        PublishRawAsync(entityName, JsonSerializer.Serialize(message, _jsonOpt), typeof(T).Name, ct);
+        PublishRawAsync(entityName, JsonSerializer.Serialize(message, _jsonOpt), typeof(T).Name, null, ct);
 
-    public async Task PublishRawAsync(string entityName, string payload, string subject, CancellationToken ct = default)
+    public async Task PublishRawAsync(
+        string entityName, string payload, string subject, string? messageId, CancellationToken ct = default)
     {
         var sender = _senders.GetOrAdd(entityName, static (name, client) => client.CreateSender(name), _client);
 
@@ -32,6 +33,9 @@ public class AzureServiceBusPublisher : IMessagePublisher, IAsyncDisposable
             ContentType = "application/json",
             Subject = subject
         };
+
+        if (!string.IsNullOrWhiteSpace(messageId))
+            busMessage.MessageId = messageId;
 
         await sender.SendMessageAsync(busMessage, ct);
     }
