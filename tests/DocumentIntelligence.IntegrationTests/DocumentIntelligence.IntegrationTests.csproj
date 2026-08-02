@@ -12,12 +12,13 @@
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="Testcontainers.MsSql" Version="4.13.0" />
+    <PackageReference Include="Testcontainers.ServiceBus" Version="4.13.0" />
     <PackageReference Include="xunit" Version="2.5.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
 
-    <!-- Lets a test skip itself when the broker or database is not there, so the suite
-         stays green on a machine with no containers instead of failing for the wrong
-         reason. -->
+    <!-- Lets a test skip itself when Docker is unavailable, so the suite stays green on a
+         machine with no container runtime instead of failing for an unrelated reason. -->
     <PackageReference Include="Xunit.SkippableFact" Version="1.4.13" />
 
     <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.20.1" />
@@ -30,6 +31,12 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!-- The emulator creates its entities from this at startup; the fixture hands it the
+       path. One subscription per test lives in here. -->
+  <ItemGroup>
+    <None Update="servicebus-test-config.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
