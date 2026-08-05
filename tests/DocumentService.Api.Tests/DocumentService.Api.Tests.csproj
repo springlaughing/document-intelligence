@@ -15,6 +15,10 @@
     <PackageReference Include="xunit" Version="2.5.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
     <PackageReference Include="Moq" Version="4.20.72" />
+    <!-- DocumentService.Api pulls EF Core 9, which needs System.Text.Json 9 at runtime.
+         Without this the test project resolves the net8.0 framework copy and any test
+         that touches EF fails with FileNotFoundException. -->
+    <PackageReference Include="System.Text.Json" Version="9.0.10" />
   </ItemGroup>
 
   <ItemGroup>

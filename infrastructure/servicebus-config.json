@@ -9,12 +9,12 @@
               "Properties": {
                 "DeadLetteringOnMessageExpiration": false,
                 "DefaultMessageTimeToLive": "PT1H",
-                "DuplicateDetectionHistoryTimeWindow": "PT20S",
+                "DuplicateDetectionHistoryTimeWindow": "PT5M",
                 "ForwardDeadLetteredMessagesTo": "",
                 "ForwardTo": "",
                 "LockDuration": "PT1M",
                 "MaxDeliveryCount": 10,
-                "RequiresDuplicateDetection": false,
+                "RequiresDuplicateDetection": true,
                 "RequiresSession": false
               }
             }
@@ -22,6 +22,39 @@
           "Topics": [
             {
               "Name": "analysis-completed",
+              "Properties": {
+                "DefaultMessageTimeToLive": "PT1H",
+                "DuplicateDetectionHistoryTimeWindow": "PT20S",
+                "RequiresDuplicateDetection": false
+              },
+              "Subscriptions": [
+                {
+                  "Name": "document-api",
+                  "Properties": {
+                    "DeadLetteringOnMessageExpiration": false,
+                    "DefaultMessageTimeToLive": "PT1H",
+                    "LockDuration": "PT1M",
+                    "MaxDeliveryCount": 10,
+                    "ForwardDeadLetteredMessagesTo": "",
+                    "ForwardTo": "",
+                    "RequiresSession": false
+                  },
+                  "Rules": [
+                    {
+                      "Name": "$Default",
+                      "Properties": {
+                        "FilterType": "Sql",
+                        "SqlFilter": {
+                          "SqlExpression": "1=1"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "Name": "analysis-failed",
               "Properties": {
                 "DefaultMessageTimeToLive": "PT1H",
                 "DuplicateDetectionHistoryTimeWindow": "PT20S",

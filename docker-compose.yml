@@ -9,10 +9,16 @@ services:
     ports:
       - "1433:1433"   # optional, but good for debugging
     healthcheck:
-      test: ["CMD-SHELL", "sqlcmd -S localhost -U sa -P $${MSSQL_SA_PASSWORD} -Q 'SELECT 1' || exit 1"]
+      # Full path: the image ships sqlcmd in /opt/mssql-tools/bin but does not put it on
+      # PATH, so a bare "sqlcmd" always exits 127. That made this check unpassable, and
+      # with servicebus waiting on service_healthy it meant the stack never came up.
+      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -Q 'SELECT 1' -C || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      # SQL Edge needs a while before it accepts connections; without this the retries
+      # are spent on a server that simply has not finished starting.
+      start_period: 30s
     networks:
       - backend
 
@@ -41,7 +47,11 @@ services:
     ports:
       - "5140:8080"
     depends_on:
-      - servicebus
+      servicebus:
+        condition: service_started
+      # The API applies migrations at startup, so the database must be up first.
+      sqledge:
+        condition: service_healthy
     networks:
       - backend
 

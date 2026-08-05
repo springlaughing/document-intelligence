@@ -17,6 +17,12 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocumentService.Api.Tests",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AnalysisService.Worker.Tests", "tests\AnalysisService.Worker.Tests\AnalysisService.Worker.Tests.csproj", "{05DBD813-2759-460A-A260-C54D4FF6C603}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocumentIntelligence.ArchitectureTests", "tests\DocumentIntelligence.ArchitectureTests\DocumentIntelligence.ArchitectureTests.csproj", "{14F84336-F651-4AC0-B301-A83C70A397E4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocumentIntelligence.Messaging", "src\DocumentIntelligence.Messaging\DocumentIntelligence.Messaging.csproj", "{8170F213-DEB5-48F0-B2FC-21BC582F1033}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocumentIntelligence.IntegrationTests", "tests\DocumentIntelligence.IntegrationTests\DocumentIntelligence.IntegrationTests.csproj", "{16947858-6D46-4546-B86F-8580D190BEF0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -46,6 +52,18 @@ Global
 		{05DBD813-2759-460A-A260-C54D4FF6C603}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{05DBD813-2759-460A-A260-C54D4FF6C603}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{05DBD813-2759-460A-A260-C54D4FF6C603}.Release|Any CPU.Build.0 = Release|Any CPU
+		{14F84336-F651-4AC0-B301-A83C70A397E4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{14F84336-F651-4AC0-B301-A83C70A397E4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{14F84336-F651-4AC0-B301-A83C70A397E4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{14F84336-F651-4AC0-B301-A83C70A397E4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8170F213-DEB5-48F0-B2FC-21BC582F1033}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8170F213-DEB5-48F0-B2FC-21BC582F1033}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8170F213-DEB5-48F0-B2FC-21BC582F1033}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8170F213-DEB5-48F0-B2FC-21BC582F1033}.Release|Any CPU.Build.0 = Release|Any CPU
+		{16947858-6D46-4546-B86F-8580D190BEF0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{16947858-6D46-4546-B86F-8580D190BEF0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{16947858-6D46-4546-B86F-8580D190BEF0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{16947858-6D46-4546-B86F-8580D190BEF0}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{C11AEA2E-0B42-4F7E-9AF3-C1945865FE35} = {B0DDEF29-3DC6-41D7-9D7F-B9039F3462E2}
@@ -53,5 +71,8 @@ Global
 		{BD3CCE6F-D112-4B6E-864C-7D4720CA6F33} = {B0DDEF29-3DC6-41D7-9D7F-B9039F3462E2}
 		{E48D53AF-91D1-4720-87B7-5A2F71E39CDD} = {47937B65-704C-4BF4-97E6-F3AA1A99FC38}
 		{05DBD813-2759-460A-A260-C54D4FF6C603} = {47937B65-704C-4BF4-97E6-F3AA1A99FC38}
+		{14F84336-F651-4AC0-B301-A83C70A397E4} = {47937B65-704C-4BF4-97E6-F3AA1A99FC38}
+		{8170F213-DEB5-48F0-B2FC-21BC582F1033} = {B0DDEF29-3DC6-41D7-9D7F-B9039F3462E2}
+		{16947858-6D46-4546-B86F-8580D190BEF0} = {47937B65-704C-4BF4-97E6-F3AA1A99FC38}
 	EndGlobalSection
 EndGlobal

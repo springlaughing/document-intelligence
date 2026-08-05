@@ -1,24 +1,46 @@
+using System.Diagnostics;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
-using DocumentIntelligence.Contracts.Messaging;
-using DocumentIntelligence.Contracts.DomainContracts;
-using DocumentIntelligence.Contracts.Contracts;
-using DocumentService.Api.Messaging;
+using DocumentIntelligence.Messaging;
+using DocumentService.Api.Domain;
+using DocumentIntelligence.Contracts;
+using DocumentService.Api.Features.Documents.RecordAnalysisResult;
+using DocumentService.Api.Features.Documents.RequestAnalysis;
 using DocumentService.Api.Infrastructure.Repositories;
+using DocumentService.Api.Infrastructure.Outbox;
 using DocumentService.Api.Infrastructure.Ef;
 using DocumentService.Api.Infrastructure.Ef.Entities;
 using Microsoft.EntityFrameworkCore;
 using Azure.Messaging.ServiceBus; 
 using Microsoft.OpenApi.Models;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
+
+// The Azure SDK only emits ActivitySource spans - and only injects W3C traceparent into
+// outgoing messages - when this is on. Without it the Service Bus hop produces no spans
+// at all, so a trace stops dead at the publish and starts fresh in the consumer. Must be
+// set before any Azure client is constructed, hence the very first line.
+AppContext.SetSwitch("Azure.Experimental.EnableActivitySource", true);
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Logging.ClearProviders();
-builder.Logging.AddSimpleConsole(o => o.TimestampFormat = "HH:mm:ss ");
+builder.Logging.AddSimpleConsole(o =>
+{
+    o.TimestampFormat = "HH:mm:ss ";
+    o.IncludeScopes = true;   // without this the trace id below is collected but never shown
+});
+
+// Stamps every log line with the current trace, so lines belonging to one request - or
+// to one message, on either side of the wire - can be pulled together. This is the
+// correlation id; there is no need to invent a second one.
+builder.Logging.Configure(o =>
+    o.ActivityTrackingOptions = ActivityTrackingOptions.TraceId | ActivityTrackingOptions.SpanId);
 
 var authMode = builder.Configuration["AUTH_MODE"] ?? "userjwts";
 
@@ -40,21 +62,47 @@ else
 
 
 
-builder.Services.AddSingleton(sp => new JsonSerializerOptions(JsonSerializerDefaults.Web));
-if (!builder.Environment.IsDevelopment())
+// Enums go on the wire as names, not ordinals: adding an enum value must not
+// silently change the meaning of in-flight or dead-lettered messages.
+builder.Services.AddSingleton(sp => new JsonSerializerOptions(JsonSerializerDefaults.Web)
 {
-    var aiConnStr =
-        builder.Configuration["ApplicationInsights:ConnectionString"]
-        ?? Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");
+    Converters = { new JsonStringEnumConverter() }
+});
+// Tracing always registers; only the exporter depends on the environment. Previously the
+// whole pipeline was skipped unless this was a non-Development environment *and* an
+// Application Insights connection string existed - so the one environment where you are
+// actually trying to follow a message through the system was the one producing no traces
+// at all.
+var aiConnectionString =
+    builder.Configuration["ApplicationInsights:ConnectionString"]
+    ?? Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");
 
-    if (!string.IsNullOrWhiteSpace(aiConnStr))
-    {
-        builder.Services.AddOpenTelemetry()
-            .ConfigureResource(r => r.AddService(builder.Environment.ApplicationName))
-            .UseAzureMonitor(o => o.ConnectionString = aiConnStr);
-    }
+var telemetry = builder.Services.AddOpenTelemetry()
+    .ConfigureResource(r => r.AddService(builder.Environment.ApplicationName));
 
-}
+telemetry.WithTracing(tracing =>
+{
+    tracing.AddAspNetCoreInstrumentation();
+
+    // The Azure SDK emits a span for every send and receive and propagates W3C
+    // traceparent inside the message. That is what stitches the two services together
+    // across the wire hop - the hop Go-to-Definition cannot follow.
+    tracing.AddSource("Azure.*");
+
+    // Spans this service raises itself, currently the outbox poller restoring the trace
+    // of the request that queued a message.
+    tracing.AddSource(OutboxTelemetry.ActivitySourceName);
+
+    if (string.IsNullOrWhiteSpace(aiConnectionString) && builder.Environment.IsDevelopment())
+        tracing.AddConsoleExporter();
+});
+
+// The reconciliation sweep reports counts rather than spans: what matters is the rate of
+// documents it had to repair, which is a number over time, not one operation to follow.
+telemetry.WithMetrics(metrics => metrics.AddMeter(ReconciliationTelemetry.MeterName));
+
+if (!string.IsNullOrWhiteSpace(aiConnectionString))
+    telemetry.UseAzureMonitor(o => o.ConnectionString = aiConnectionString);
 
 builder.Services.AddSingleton(sp =>
 {
@@ -105,17 +153,30 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy("AdminOnly", p => p.RequireRole("admin"));
 
 
+// SQL Server when a connection string is configured, InMemory otherwise - the same
+// shape as the ServiceBusClient registration above.
+//
+// InMemory keeps `dotnet run` working with no containers, but it is not a relational
+// store: it ignores the RowVersion concurrency token, max lengths and unique
+// constraints that DocumentEntityConfiguration declares. Anything that depends on
+// those - optimistic concurrency, idempotency by unique key, the outbox - only really
+// works on the relational path.
+var documentDbConnection = builder.Configuration.GetConnectionString("DocumentDb");
+var useRelationalDb = !string.IsNullOrWhiteSpace(documentDbConnection);
+
 builder.Services.AddDbContext<DocumentApiDbContext>(options =>
 {
-    
-    // InMemory (für lokale Tests)
-    options.UseInMemoryDatabase("DocumentApiDb");
-    
-    // Cloud später: 
-    // o.UseSqlServer(connString, sql => sql.EnableRetryOnFailure(
-    // maxRetryCount: 5,
-    // maxRetryDelay: TimeSpan.FromSeconds(5),
-    // errorNumbersToAdd: null)));
+    if (useRelationalDb)
+    {
+        options.UseSqlServer(documentDbConnection, sql => sql.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(5),
+            errorNumbersToAdd: null));
+    }
+    else
+    {
+        options.UseInMemoryDatabase("DocumentApiDb");
+    }
 });
 
 // Repo
@@ -123,9 +184,26 @@ builder.Services.AddScoped<IDocumentRepository, EfDocumentRepository>();
 
 // Messaging
 builder.Services.AddSingleton<IMessagePublisher, AzureServiceBusPublisher>();
-builder.Services.AddScoped<IAnalyzeDocumentCommandPublisher, AnalyzeDocumentCommandPublisher>();
+builder.Services.AddScoped<IAnalyzeDocumentCommandQueue, AnalyzeDocumentCommandQueue>();
+
+// Nothing publishes the analyze command inline any more; it is written to the outbox
+// inside the same transaction as the status change, and this drains it.
+builder.Services.AddScoped<OutboxDrainer>();
+builder.Services.AddHostedService<OutboxPoller>();
+
+// Both the inbox and the outbox are append-only; without this they grow forever.
+builder.Services.AddScoped<OldMessageCleaner>();
+builder.Services.AddHostedService<CleanupScheduler>();
+
+// The outbox guarantees the command is published and the inbox that a result is applied
+// once. Neither can see a command that dead-lettered, because nothing arrives to be
+// handled - so this reads state on a timer instead. ADR 0004.
+builder.Services.AddScoped<StuckAnalysisReconciler>();
+builder.Services.AddHostedService<StuckAnalysisScheduler>();
 builder.Services.AddScoped<IMessageHandler<AnalysisCompletedEvent>, AnalysisCompletedEventHandler>();
 builder.Services.AddHostedService<AnalysisCompletedEventListener>();
+builder.Services.AddScoped<IMessageHandler<AnalysisFailedEvent>, AnalysisFailedEventHandler>();
+builder.Services.AddHostedService<AnalysisFailedEventListener>();
 
 
 builder.Services.AddEndpointsApiExplorer();
@@ -167,12 +245,20 @@ var env = app.Environment;
 app.Logger.LogInformation("Environment: {Env} (IsDevelopment={IsDev})",
     env.EnvironmentName, env.IsDevelopment());
 
-// Seed initial data (dev only)
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<DocumentApiDbContext>();
 
-    if (!db.Documents.Any())
+    // Migrating at startup is a convenience for a local demo. A real deployment applies
+    // migrations as its own step, so two replicas starting together cannot race here.
+    if (useRelationalDb)
+    {
+        app.Logger.LogInformation("Applying migrations to the document database.");
+        await db.Database.MigrateAsync();
+    }
+
+    // Demo data, development only - it used to be seeded in every environment.
+    if (app.Environment.IsDevelopment() && !db.Documents.Any())
     {
         var doc1Id = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
         var doc2Id = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
