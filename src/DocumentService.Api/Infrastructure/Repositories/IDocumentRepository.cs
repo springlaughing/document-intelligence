@@ -34,7 +34,37 @@ public interface IDocumentRepository
     Task<bool> TryStartAnalysisAsync(
         Guid documentId, DocumentStatus status, OutboxEnqueue message, CancellationToken ct = default);
 
+    // ---- reconciliation ----
+    //
+    // The outbox and the inbox both react to messages, so neither can notice a message
+    // that never arrives. These read state instead, which is the only way to detect an
+    // absence. See ADR 0004.
+
+    // Documents that entered Analyzing before the cutoff and have not moved since.
+    Task<IReadOnlyList<StuckAnalysis>> FindStuckAnalysesAsync(
+        DateTimeOffset startedBeforeUtc, int limit, CancellationToken ct = default);
+
+    // Re-queues analysis and counts the attempt, in one transaction.
+    //
+    // expectedAttempts is a compare-and-swap: the caller passes what it saw when it
+    // decided to act, and the write only lands if that is still true. Replicas all run
+    // their own sweep, so two can select the same document; without this both would
+    // increment and the limit would be reached at twice the intended rate. Returns false
+    // when another writer got there first - a routine outcome, not an error.
+    Task<bool> TryRetryAnalysisAsync(
+        Guid documentId, int expectedAttempts, OutboxEnqueue message, CancellationToken ct = default);
+
+    // Gives up on a document whose attempts are exhausted. Same compare-and-swap.
+    Task<bool> TryFailStuckAnalysisAsync(
+        Guid documentId, int expectedAttempts, string reason, CancellationToken ct = default);
 }
+
+// A candidate for reconciliation: enough to decide what to do without loading the row.
+public record StuckAnalysis(
+    Guid Id,
+    string FileName,
+    int Attempts,
+    DateTimeOffset? StartedAtUtc);
 
 // A message to be published, already serialized. The repository stores it; deciding
 // what to send and where belongs to the feature that wants it sent.

@@ -57,15 +57,22 @@ namespace DocumentService.Api.Infrastructure.Ef.Configurations
 
             doc.Property(d => d.AnalysisBlobRef)
                 .HasMaxLength(500); // URL / blob path reference
-                
+
+            doc.Property(d => d.FailureReason)
+                .HasMaxLength(500);
+
             // Optimistic Concurrency / RowVersion
             doc.Property(d => d.RowVersion)
                .IsRowVersion()
                .IsConcurrencyToken(); 
 
-            // Optional: Indizieren
-            // Falls man häufig nach Status filtert (z.B. "alle PENDING Dokumente abholen")
-            doc.HasIndex(d => d.Status);
+            // Falls man häufig nach Status filtert (z.B. "alle PENDING Dokumente abholen").
+            //
+            // Composite rather than Status alone, because the reconciliation sweep runs
+            // "Status == Analyzing AND AnalysisStartedAtUtc < cutoff" on every pass. Status
+            // leads, so this still serves every lookup the single-column index served -
+            // which is why that one is gone rather than kept alongside.
+            doc.HasIndex(d => new { d.Status, d.AnalysisStartedAtUtc });
 
         }
     }

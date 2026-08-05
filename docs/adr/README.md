@@ -16,3 +16,4 @@ supersedes the old one, and the old one is marked as superseded rather than edit
 | [0001](0001-transactional-outbox-for-command-publishing.md) | Transactional outbox for command publishing | Accepted |
 | [0002](0002-accept-the-inbox-recheck-race.md) | Accept the inbox re-check race rather than lock | Accepted |
 | [0003](0003-deterministic-event-ids-instead-of-a-worker-inbox.md) | Deduplicate the analysis service through its output store, not a database | Accepted |
+| [0004](0004-reconcile-stuck-analyses-with-a-level-triggered-sweep.md) | Reconcile stuck analyses with a level-triggered sweep | Accepted |

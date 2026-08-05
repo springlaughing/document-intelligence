@@ -4,6 +4,7 @@ using DocumentService.Api.Infrastructure.Ef;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DocumentService.Api.Infrastructure.Ef.Migrations
 {
     [DbContext(typeof(DocumentApiDbContext))]
-    partial class DocumentApiDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260805130814_AddAnalysisAttemptTracking")]
+    partial class AddAnalysisAttemptTracking
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

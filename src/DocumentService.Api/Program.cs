@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -96,6 +97,10 @@ telemetry.WithTracing(tracing =>
         tracing.AddConsoleExporter();
 });
 
+// The reconciliation sweep reports counts rather than spans: what matters is the rate of
+// documents it had to repair, which is a number over time, not one operation to follow.
+telemetry.WithMetrics(metrics => metrics.AddMeter(ReconciliationTelemetry.MeterName));
+
 if (!string.IsNullOrWhiteSpace(aiConnectionString))
     telemetry.UseAzureMonitor(o => o.ConnectionString = aiConnectionString);
 
@@ -189,6 +194,12 @@ builder.Services.AddHostedService<OutboxPoller>();
 // Both the inbox and the outbox are append-only; without this they grow forever.
 builder.Services.AddScoped<OldMessageCleaner>();
 builder.Services.AddHostedService<CleanupScheduler>();
+
+// The outbox guarantees the command is published and the inbox that a result is applied
+// once. Neither can see a command that dead-lettered, because nothing arrives to be
+// handled - so this reads state on a timer instead. ADR 0004.
+builder.Services.AddScoped<StuckAnalysisReconciler>();
+builder.Services.AddHostedService<StuckAnalysisScheduler>();
 builder.Services.AddScoped<IMessageHandler<AnalysisCompletedEvent>, AnalysisCompletedEventHandler>();
 builder.Services.AddHostedService<AnalysisCompletedEventListener>();
 builder.Services.AddScoped<IMessageHandler<AnalysisFailedEvent>, AnalysisFailedEventHandler>();
