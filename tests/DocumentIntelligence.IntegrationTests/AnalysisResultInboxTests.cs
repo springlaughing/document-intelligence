@@ -25,16 +25,16 @@ namespace DocumentIntelligence.IntegrationTests;
 // a correlation filter on the message Subject. Sharing one subscription made the tests
 // steal each other's messages, which is a property of the harness rather than the code
 // and produced failures that meant nothing.
-[Collection(BrokerCollection.Name)]
+[Collection(SharedContainerCollection.Name)]
 public class AnalysisResultInboxTests : IAsyncDisposable
 {
     private const string Topic = "analysis-completed";
 
-    private readonly BrokerFixture _broker;
+    private readonly SharedContainerFixture _containers;
     private readonly List<IAsyncDisposable> _disposables = new();
     private ServiceProvider? _services;
 
-    public AnalysisResultInboxTests(BrokerFixture broker) => _broker = broker;
+    public AnalysisResultInboxTests(SharedContainerFixture containers) => _containers = containers;
 
     private static JsonSerializerOptions JsonOptions => new(JsonSerializerDefaults.Web)
     {
@@ -50,7 +50,7 @@ public class AnalysisResultInboxTests : IAsyncDisposable
     [SkippableFact]
     public async Task A_redelivered_event_is_applied_exactly_once()
     {
-        Skip.IfNot(_broker.Started, $"Containers did not start: {_broker.StartupFailure}");
+        Skip.IfNot(_containers.Started, $"Containers did not start: {_containers.StartupFailure}");
 
         const string subscription = "redelivered-event";
         var (dbConnection, documentId) = await GivenAnUploadedDocument();
@@ -90,7 +90,7 @@ public class AnalysisResultInboxTests : IAsyncDisposable
     public async Task Two_distinct_events_are_both_applied()
     {
         // The guard must not be so eager that it swallows a genuine second result.
-        Skip.IfNot(_broker.Started, $"Containers did not start: {_broker.StartupFailure}");
+        Skip.IfNot(_containers.Started, $"Containers did not start: {_containers.StartupFailure}");
 
         const string subscription = "distinct-events";
         var (dbConnection, documentId) = await GivenAnUploadedDocument();
@@ -112,10 +112,10 @@ public class AnalysisResultInboxTests : IAsyncDisposable
     {
         // Nothing can delete a document in this service, so an event naming one that does
         // not exist is a symptom. It must be kept for inspection, not quietly completed.
-        Skip.IfNot(_broker.Started, $"Containers did not start: {_broker.StartupFailure}");
+        Skip.IfNot(_containers.Started, $"Containers did not start: {_containers.StartupFailure}");
 
         const string subscription = "unknown-document";
-        var dbConnection = await _broker.CreateDatabaseAsync();
+        var dbConnection = await _containers.CreateDatabaseAsync();
         var client = await StartConsumer(dbConnection, subscription);
 
         var missingDocumentId = Guid.NewGuid();
@@ -140,7 +140,7 @@ public class AnalysisResultInboxTests : IAsyncDisposable
 
     private async Task<(string DbConnection, Guid DocumentId)> GivenAnUploadedDocument()
     {
-        var connectionString = await _broker.CreateDatabaseAsync();
+        var connectionString = await _containers.CreateDatabaseAsync();
 
         await using var db = NewDbContext(connectionString);
         var documentId = Guid.NewGuid();
@@ -167,7 +167,7 @@ public class AnalysisResultInboxTests : IAsyncDisposable
 
         _services = services.BuildServiceProvider();
 
-        var client = new ServiceBusClient(_broker.ServiceBusConnectionString);
+        var client = new ServiceBusClient(_containers.ServiceBusConnectionString);
         _disposables.Add(client);
 
         var dispatcher = new ServiceBusMessageDispatcher<AnalysisCompletedEvent>(

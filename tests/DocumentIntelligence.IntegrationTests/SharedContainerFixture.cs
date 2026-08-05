@@ -18,7 +18,7 @@ namespace DocumentIntelligence.IntegrationTests;
 // API, so a test cannot create a subscription for itself at runtime. Declaring one
 // subscription per test in servicebus-test-config.json is the only way to stop tests
 // consuming each other's messages.
-public sealed class BrokerFixture : IAsyncLifetime
+public sealed class SharedContainerFixture : IAsyncLifetime
 {
     // Images are named here rather than left to the library's defaults. Testcontainers
     // now wants the image passed to the builder, and its default SQL tag is not the one
@@ -109,7 +109,7 @@ public sealed class BrokerFixture : IAsyncLifetime
 }
 
 [CollectionDefinition(Name)]
-public sealed class BrokerCollection : ICollectionFixture<BrokerFixture>
+public sealed class SharedContainerCollection : ICollectionFixture<SharedContainerFixture>
 {
-    public const string Name = "broker";
+    public const string Name = "shared-containers";
 }
