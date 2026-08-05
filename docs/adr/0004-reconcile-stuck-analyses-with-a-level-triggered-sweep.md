@@ -41,9 +41,14 @@ nobody enumerated in advance.
 
 **Scheduled (delayed) Service Bus messages.** On entering `Analyzing`, also enqueue a
 "check this document" message with `ScheduledEnqueueTime` set past the threshold. Neater
-than a sweep: no table scan, per-document timer precision, cost proportional to work rather
-than to table size. It also composes well with what already exists, since the schedule
-would go out through the outbox and so be transactional with the status change.
+than a sweep: no periodic query at all, no scheduler to own, and per-document timer
+precision, so a stranded document is noticed when it is actually due rather than on the next
+tick. It also composes well with what already exists, since the schedule would go out
+through the outbox and so be transactional with the status change.
+
+Its usual advantage over a sweep — avoiding a scan whose cost grows with the table — does
+not apply here, because the index below makes the sweep's cost independent of table size.
+What it would genuinely buy is latency.
 
 Rejected because **it only fires for documents where the scheduling itself succeeded.** If
 the fault is that a document reached `Analyzing` without a timer being written — a bug, a
@@ -87,6 +92,28 @@ explicit check also holds on the InMemory provider, which ignores concurrency to
 unknown start time is a guess. The migration backfills existing `Analyzing` rows with the
 deploy time rather than leaving them permanently invisible — costing one sweep window, and
 avoiding a mass re-queue at the moment of deployment.
+
+**The sweep's cost does not grow with the table.** `IX_Documents_Status_AnalysisStartedAtUtc`
+leads on `Status`, so the query is an index seek into the `Analyzing` entries followed by a
+bounded range scan already in the required order — it never reads a terminal document. The
+cost tracks how many documents are *currently stuck*, which in a healthy system is none. The
+single-column `Status` index it replaces is subsumed by this one.
+
+Confirmed from the actual plan rather than assumed: both predicates are in the `SEEK`, it is
+`ORDERED FORWARD` so `ORDER BY` adds no sort, and the only extra work is a key lookup for
+`FileName` and `AnalysisAttempts` — capped by the batch size, so at most twenty per pass.
+Adding those as `INCLUDE` columns would remove it and is not worth the write cost at this
+size.
+
+**What is deferred is detection latency, not cost.** A stranded document is invisible for up
+to `StuckAfterMinutes + IntervalMinutes`. That is the number to revisit if this ever needs to
+be quicker, and scheduled messages are the complement that would fix it — added *alongside*
+the sweep, never instead of it, because the independence argument above does not weaken with
+scale. Two related knobs are left deliberately simple until something forces the issue: every
+replica performs the same seek, which leader election would remove but which costs almost
+nothing at this size; and one global threshold serves every document, which stops being
+adequate if analysis time varies widely by document, at which point it wants to be per
+document rather than per deployment.
 
 **The metrics matter more than the repair.** A loop that quietly fixes a rising number of
 documents is indistinguishable from a loop with nothing to do, which is how a systemic
