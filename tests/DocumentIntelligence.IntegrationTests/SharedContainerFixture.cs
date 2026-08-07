@@ -1,5 +1,8 @@
 using DocumentService.Api.Infrastructure.Ef;
 using DotNet.Testcontainers.Builders;
+using DotNet.Testcontainers.Configurations;
+using DotNet.Testcontainers.Containers;
+using DotNet.Testcontainers.Images;
 using DotNet.Testcontainers.Networks;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -8,8 +11,8 @@ using Testcontainers.ServiceBus;
 
 namespace DocumentIntelligence.IntegrationTests;
 
-// Starts a Service Bus emulator and the SQL Server it depends on, for the lifetime of the
-// test collection.
+// Starts a Service Bus emulator, the SQL Server it depends on, and the analysis worker, for
+// the lifetime of the test collection.
 //
 // The containers are started by the test run rather than found already running, which is
 // what makes these tests reproducible and what lets them work in CI, where nothing is
@@ -18,6 +21,10 @@ namespace DocumentIntelligence.IntegrationTests;
 // API, so a test cannot create a subscription for itself at runtime. Declaring one
 // subscription per test in servicebus-test-config.json is the only way to stop tests
 // consuming each other's messages.
+//
+// The worker runs as its real image, built from its own Dockerfile. That is deliberate: an
+// in-process copy of its wiring would test classes this repo already covers, while leaving
+// its composition root - the part that has actually broken before - unexercised.
 public sealed class SharedContainerFixture : IAsyncLifetime
 {
     // Images are named here rather than left to the library's defaults. Testcontainers
@@ -26,9 +33,15 @@ public sealed class SharedContainerFixture : IAsyncLifetime
     private const string SqlImage = "mcr.microsoft.com/mssql/server:2022-latest";
     private const string ServiceBusImage = "mcr.microsoft.com/azure-messaging/servicebus-emulator:latest";
 
+    // The worker reaches the broker by this name on the shared network, so it has to match
+    // the host in the connection string handed to the worker container below.
+    private const string ServiceBusAlias = "servicebus";
+
     private INetwork? _network;
     private MsSqlContainer? _sql;
     private ServiceBusContainer? _serviceBus;
+    private IFutureDockerImage? _workerImage;
+    private IContainer? _worker;
 
     public string ServiceBusConnectionString { get; private set; } = "";
 
@@ -56,6 +69,7 @@ public sealed class SharedContainerFixture : IAsyncLifetime
             _serviceBus = new ServiceBusBuilder(ServiceBusImage)
                 .WithAcceptLicenseAgreement(true)
                 .WithConfig(Path.Combine(AppContext.BaseDirectory, "servicebus-test-config.json"))
+                .WithNetworkAliases(ServiceBusAlias)
                 .WithMsSqlContainer(
                     _network, _sql, ServiceBusBuilder.DatabaseNetworkAlias, MsSqlBuilder.DefaultPassword)
                 .Build();
@@ -64,6 +78,9 @@ public sealed class SharedContainerFixture : IAsyncLifetime
 
             ServiceBusConnectionString = _serviceBus.GetConnectionString();
             SqlConnectionString = _sql.GetConnectionString();
+
+            await StartWorkerAsync();
+
             Started = true;
         }
         catch (Exception ex)
@@ -74,8 +91,61 @@ public sealed class SharedContainerFixture : IAsyncLifetime
         }
     }
 
+    // Builds and runs AnalysisService.Worker exactly as it is deployed.
+    private async Task StartWorkerAsync()
+    {
+        _workerImage = new ImageFromDockerfileBuilder()
+            .WithDockerfileDirectory(RepositoryRoot())
+            .WithDockerfile("src/AnalysisService.Worker/Dockerfile")
+            .WithName("documentintelligence-worker-test:latest")
+            .WithCleanUp(false)   // reuse across runs; the build is the slow part
+            .Build();
+
+        await _workerImage.CreateAsync();
+
+        _worker = new ContainerBuilder(_workerImage)
+            .WithNetwork(_network)
+            .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
+            .WithEnvironment(
+                "AzureServiceBus__ConnectionString",
+                $"Endpoint=sb://{ServiceBusAlias}/;SharedAccessKeyName=RootManageSharedAccessKey;"
+                + "SharedAccessKey=local;UseDevelopmentEmulator=true;")
+            .WithEnvironment("AzureServiceBus__AnalyzeDocumentQueueName", "analyze-document")
+            .WithEnvironment("AzureServiceBus__AnalysisCompletedTopic", "analysis-completed")
+            .WithEnvironment("AzureServiceBus__AnalysisFailedTopic", "analysis-failed")
+            .WithWaitStrategy(
+                Wait.ForUnixContainer().UntilMessageIsLogged("Environment: Development"))
+            .Build();
+
+        await _worker.StartAsync();
+    }
+
+    /// Walks up from the test output directory to the folder holding the solution, which is
+    /// the build context both Dockerfiles expect.
+    private static string RepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "DocumentIntelligence.sln")))
+            directory = directory.Parent;
+
+        return directory?.FullName
+               ?? throw new InvalidOperationException(
+                   "Could not find DocumentIntelligence.sln above " + AppContext.BaseDirectory);
+    }
+
+    /// The worker's console output, so a test that times out can say what the worker was doing.
+    public async Task<string> WorkerLogsAsync()
+    {
+        if (_worker is null) return "(worker not started)";
+
+        var (stdout, stderr) = await _worker.GetLogsAsync();
+        return stdout + stderr;
+    }
+
     public async Task DisposeAsync()
     {
+        if (_worker is not null) await _worker.DisposeAsync();
         if (_serviceBus is not null) await _serviceBus.DisposeAsync();
         if (_sql is not null) await _sql.DisposeAsync();
         if (_network is not null) await _network.DisposeAsync();

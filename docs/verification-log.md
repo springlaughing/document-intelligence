@@ -117,6 +117,8 @@ After the broker was restarted:
 - **Broker partition.** Entry 4 stopped the broker cleanly. A broker that is reachable but
   timing out, or an outage longer than the one-hour message TTL, is untested.
 - **Multiple API replicas** competing on the `document-api` subscription.
-- **Automated coverage of both services together.** `DocumentIntelligence.IntegrationTests`
-  runs against a real broker and database but never starts `AnalysisService.Worker`, so no
-  test in CI covers API → outbox → queue → worker → topic → API inbox.
+
+Both services running together is no longer only checked by hand: `WorkerRoundTripTests`
+starts the worker's real image alongside the broker and database, puts a command on the
+queue, and asserts the document ends `Analyzed` carrying the worker's own summary and blob
+reference.

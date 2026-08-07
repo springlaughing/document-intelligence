@@ -90,6 +90,27 @@
                     }
                   }
                 ]
+              },
+              {
+                "Name": "worker-round-trip",
+                "Properties": {
+                  "DeadLetteringOnMessageExpiration": false,
+                  "DefaultMessageTimeToLive": "PT1H",
+                  "LockDuration": "PT1M",
+                  "MaxDeliveryCount": 10,
+                  "ForwardDeadLetteredMessagesTo": "",
+                  "ForwardTo": "",
+                  "RequiresSession": false
+                },
+                "Rules": [
+                  {
+                    "Name": "$Default",
+                    "Properties": {
+                      "FilterType": "Correlation",
+                      "CorrelationFilter": { "Label": "AnalysisCompletedEvent" }
+                    }
+                  }
+                ]
               }
             ]
           }
