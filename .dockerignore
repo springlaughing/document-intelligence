@@ -1,0 +1,25 @@
+# Build context sent to the daemon for every image build. Without this it carries the
+# local bin/ and obj/ trees - around 337MB - none of which is used, since both Dockerfiles
+# restore and publish from source inside the image.
+**/bin/
+**/obj/
+
+.git/
+.github/
+.vs/
+.vscode/
+.idea/
+
+**/TestResults/
+coveragereport/
+
+docs/
+*.md
+!README.md
+
+**/.dockerignore
+**/Dockerfile
+docker-compose*.yml
+
+**/*.user
+**/appsettings.*.local.json
