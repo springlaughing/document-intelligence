@@ -109,6 +109,68 @@ After the broker was restarted:
 
 ---
 
+### 5. Liveness and readiness answer different questions
+
+**Tested:** that the two health endpoints fail independently, and that readiness ignores a
+broker outage on purpose.
+
+**How:** started the stack, then stopped and restarted each dependency in turn, polling
+`/health/live` and `/health/ready`.
+
+**Result:** passed.
+
+| state | `/health/live` | `/health/ready` |
+|---|---|---|
+| Everything up | `200 Healthy` | `200 Healthy` |
+| Database stopped | `200 Healthy` | `503 Unhealthy` |
+| Broker stopped, database up | `200 Healthy` | `200 Healthy` |
+
+A database outage takes the replica out of the load balancer without restarting it. A broker
+outage changes nothing, because the outbox lets the API keep accepting work — the behaviour
+recorded in entry 4.
+
+The compose healthcheck reports `healthy` in both of the last two states, since it calls
+`/health/ready`.
+
+---
+
+### 6. Multiple API replicas behind a load balancer
+
+**Tested:** that the API runs as several replicas — traffic spread across them, one able to
+die without taking requests with it, and the messaging layer unaffected by there being three
+of everything.
+
+**How:** `docker compose up --scale api=3`, with Traefik in front discovering replicas from
+the Docker socket and polling `/health/ready`. Registered documents through the proxy, then
+sent `SIGKILL` to one replica midway through a second run.
+
+**Result:** passed, after fixing a defect the test found (below).
+
+| | |
+|---|---|
+| 30 requests, all replicas up | 10 / 10 / 10 |
+| 60 requests, one replica killed at 20 | 59 succeeded, 1 failed |
+| Same run with Traefik's retry middleware | **60 succeeded, 0 failed** |
+| Concurrency conflicts across replicas | 0 |
+| Outbox publish failures across replicas | 0 |
+
+The single failure without retry is the request in flight when the replica was killed:
+health checks only notice afterwards. Retry resends it to another replica, which is safe
+here because the endpoints are idempotent.
+
+**Defect found and fixed: startup migrations could not survive more than one replica.** On
+the first attempt two of the three replicas exited immediately — all three called
+`MigrateAsync` at startup and raced to create the database, and two died on a command
+timeout. EF Core does lock migrations, but the collision was in *database creation*, which
+happens before a lock can be taken in a database that does not exist.
+
+Migrating is now a separate run of the same image (`--migrate-only`), which applies
+migrations and exits. In compose it is a one-shot `migrator` service the API waits on via
+`service_completed_successfully`; replicas serving traffic no longer migrate at all. After
+that change all three replicas started cleanly.
+
+---
+
 ## Not covered
 
 - **Worker killed while handling a message.** Entry 3 killed a worker between messages, not
@@ -116,7 +178,8 @@ After the broker was restarted:
   injection to make the handler slow enough to interrupt.
 - **Broker partition.** Entry 4 stopped the broker cleanly. A broker that is reachable but
   timing out, or an outage longer than the one-hour message TTL, is untested.
-- **Multiple API replicas** competing on the `document-api` subscription.
+- **Sustained load against several API replicas.** Entry 6 used tens of requests, enough to
+  show distribution and survival but not enough to provoke the inbox race ADR 0002 describes.
 
 Both services running together is no longer only checked by hand: `WorkerRoundTripTests`
 starts the worker's real image alongside the broker and database, puts a command on the

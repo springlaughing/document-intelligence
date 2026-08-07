@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -206,6 +207,25 @@ builder.Services.AddScoped<IMessageHandler<AnalysisFailedEvent>, AnalysisFailedE
 builder.Services.AddHostedService<AnalysisFailedEventListener>();
 
 
+// Two probes, because the platform does two different things with the answers.
+//
+// Liveness asks "is this process still working?" and a failure gets the container
+// restarted. It therefore checks nothing external: if it tested the database, a brief
+// database blip would restart every replica at once, turning a recoverable dependency
+// failure into a self-inflicted outage.
+//
+// Readiness asks "should this replica receive traffic?" and a failure only removes it from
+// the load balancer. That is where dependency checks belong, because a replica that cannot
+// reach its database should stop being sent requests while it recovers.
+//
+// The broker is deliberately *not* checked. The outbox means this service can accept and
+// durably record work while Service Bus is unreachable - verified in
+// docs/verification-log.md, where the analyze endpoint kept answering 202 with the broker
+// stopped. Failing readiness on a broker outage would take the API out of the load balancer
+// for a fault it is designed to survive.
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<DocumentApiDbContext>("document-db", tags: ["ready"]);
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -245,16 +265,44 @@ var env = app.Environment;
 app.Logger.LogInformation("Environment: {Env} (IsDevelopment={IsDev})",
     env.EnvironmentName, env.IsDevelopment());
 
+// Schema changes are an administrative task, not part of starting a web server, and the
+// difference stops being academic the moment there is more than one replica: three
+// starting together all called MigrateAsync, raced to create the same database, and two
+// died on a command timeout while the third won.
+//
+// So migrating is now its own run of this image - `--migrate-only` applies migrations and
+// exits - and the replicas serving traffic never migrate at all. In compose the migrator
+// runs as a one-shot service the API waits on; in a real deployment it is a job that must
+// finish before the new version rolls out.
+var migrateOnly = args.Contains("--migrate-only");
+
+if (migrateOnly)
+{
+    if (!useRelationalDb)
+        throw new InvalidOperationException(
+            "--migrate-only needs ConnectionStrings:DocumentDb; there is nothing to migrate on the in-memory provider.");
+
+    using var migrationScope = app.Services.CreateScope();
+    var target = migrationScope.ServiceProvider.GetRequiredService<DocumentApiDbContext>();
+
+    app.Logger.LogInformation("Applying migrations to the document database.");
+    await target.Database.MigrateAsync();
+    app.Logger.LogInformation("Migrations applied; exiting.");
+
+    return;
+}
+
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<DocumentApiDbContext>();
 
-    // Migrating at startup is a convenience for a local demo. A real deployment applies
-    // migrations as its own step, so two replicas starting together cannot race here.
-    if (useRelationalDb)
+    // Nothing here creates the schema any more, so say so plainly rather than letting the
+    // seed below fail on a missing table.
+    if (useRelationalDb && (await db.Database.GetPendingMigrationsAsync()).Any())
     {
-        app.Logger.LogInformation("Applying migrations to the document database.");
-        await db.Database.MigrateAsync();
+        app.Logger.LogWarning(
+            "The document database has pending migrations. Run this image with "
+            + "--migrate-only before starting it, or the schema will not match.");
     }
 
     // Demo data, development only - it used to be seeded in every environment.
@@ -306,6 +354,20 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Anonymous, because the thing calling these is the orchestrator's probe, which has no
+// token and cannot be given one.
+//
+// Liveness runs no checks at all - Predicate false selects none of them. Answering at all
+// is the whole signal: the process is up and the request pipeline works.
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false })
+   .AllowAnonymous();
+
+// Readiness runs only what is tagged "ready", currently the database.
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+}).AllowAnonymous();
 
 app.MapControllers();
 
