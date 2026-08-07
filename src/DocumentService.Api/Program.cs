@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -206,6 +207,25 @@ builder.Services.AddScoped<IMessageHandler<AnalysisFailedEvent>, AnalysisFailedE
 builder.Services.AddHostedService<AnalysisFailedEventListener>();
 
 
+// Two probes, because the platform does two different things with the answers.
+//
+// Liveness asks "is this process still working?" and a failure gets the container
+// restarted. It therefore checks nothing external: if it tested the database, a brief
+// database blip would restart every replica at once, turning a recoverable dependency
+// failure into a self-inflicted outage.
+//
+// Readiness asks "should this replica receive traffic?" and a failure only removes it from
+// the load balancer. That is where dependency checks belong, because a replica that cannot
+// reach its database should stop being sent requests while it recovers.
+//
+// The broker is deliberately *not* checked. The outbox means this service can accept and
+// durably record work while Service Bus is unreachable - verified in
+// docs/verification-log.md, where the analyze endpoint kept answering 202 with the broker
+// stopped. Failing readiness on a broker outage would take the API out of the load balancer
+// for a fault it is designed to survive.
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<DocumentApiDbContext>("document-db", tags: ["ready"]);
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -306,6 +326,20 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Anonymous, because the thing calling these is the orchestrator's probe, which has no
+// token and cannot be given one.
+//
+// Liveness runs no checks at all - Predicate false selects none of them. Answering at all
+// is the whole signal: the process is up and the request pipeline works.
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false })
+   .AllowAnonymous();
+
+// Readiness runs only what is tagged "ready", currently the database.
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+}).AllowAnonymous();
 
 app.MapControllers();
 

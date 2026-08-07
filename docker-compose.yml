@@ -46,6 +46,15 @@ services:
       - ./docker/env/api.env
     ports:
       - "5140:8080"
+    healthcheck:
+      # Readiness, not liveness: this is what an orchestrator would ask before sending
+      # traffic. It fails while the database is unreachable and passes while the broker is,
+      # which is the behaviour the outbox is there to provide.
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/ready || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
     depends_on:
       servicebus:
         condition: service_started

@@ -109,6 +109,31 @@ After the broker was restarted:
 
 ---
 
+### 5. Liveness and readiness answer different questions
+
+**Tested:** that the two health endpoints fail independently, and that readiness ignores a
+broker outage on purpose.
+
+**How:** started the stack, then stopped and restarted each dependency in turn, polling
+`/health/live` and `/health/ready`.
+
+**Result:** passed.
+
+| state | `/health/live` | `/health/ready` |
+|---|---|---|
+| Everything up | `200 Healthy` | `200 Healthy` |
+| Database stopped | `200 Healthy` | `503 Unhealthy` |
+| Broker stopped, database up | `200 Healthy` | `200 Healthy` |
+
+A database outage takes the replica out of the load balancer without restarting it. A broker
+outage changes nothing, because the outbox lets the API keep accepting work — the behaviour
+recorded in entry 4.
+
+The compose healthcheck reports `healthy` in both of the last two states, since it calls
+`/health/ready`.
+
+---
+
 ## Not covered
 
 - **Worker killed while handling a message.** Entry 3 killed a worker between messages, not
