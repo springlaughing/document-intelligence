@@ -265,16 +265,44 @@ var env = app.Environment;
 app.Logger.LogInformation("Environment: {Env} (IsDevelopment={IsDev})",
     env.EnvironmentName, env.IsDevelopment());
 
+// Schema changes are an administrative task, not part of starting a web server, and the
+// difference stops being academic the moment there is more than one replica: three
+// starting together all called MigrateAsync, raced to create the same database, and two
+// died on a command timeout while the third won.
+//
+// So migrating is now its own run of this image - `--migrate-only` applies migrations and
+// exits - and the replicas serving traffic never migrate at all. In compose the migrator
+// runs as a one-shot service the API waits on; in a real deployment it is a job that must
+// finish before the new version rolls out.
+var migrateOnly = args.Contains("--migrate-only");
+
+if (migrateOnly)
+{
+    if (!useRelationalDb)
+        throw new InvalidOperationException(
+            "--migrate-only needs ConnectionStrings:DocumentDb; there is nothing to migrate on the in-memory provider.");
+
+    using var migrationScope = app.Services.CreateScope();
+    var target = migrationScope.ServiceProvider.GetRequiredService<DocumentApiDbContext>();
+
+    app.Logger.LogInformation("Applying migrations to the document database.");
+    await target.Database.MigrateAsync();
+    app.Logger.LogInformation("Migrations applied; exiting.");
+
+    return;
+}
+
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<DocumentApiDbContext>();
 
-    // Migrating at startup is a convenience for a local demo. A real deployment applies
-    // migrations as its own step, so two replicas starting together cannot race here.
-    if (useRelationalDb)
+    // Nothing here creates the schema any more, so say so plainly rather than letting the
+    // seed below fail on a missing table.
+    if (useRelationalDb && (await db.Database.GetPendingMigrationsAsync()).Any())
     {
-        app.Logger.LogInformation("Applying migrations to the document database.");
-        await db.Database.MigrateAsync();
+        app.Logger.LogWarning(
+            "The document database has pending migrations. Run this image with "
+            + "--migrate-only before starting it, or the schema will not match.");
     }
 
     // Demo data, development only - it used to be seeded in every environment.
